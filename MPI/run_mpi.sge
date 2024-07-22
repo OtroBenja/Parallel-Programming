@@ -1,0 +1,15 @@
+#!/bin/bash
+#
+#$ -pe mpi 6
+#$ -cwd
+#$ -j y
+#$ -S /bin/bash
+#$ -N lcdm
+#$ -q kepler.q
+#
+
+ulimit -s unlimited
+
+echo "NSLOTS: $NSLOTS"
+module load intel2020/mpi
+mpirun -np $NSLOTS /home/data/gcandlish/danielas_work/ramses/trunk/ramses/bin/ramses_scf_3d cosmo.nml
