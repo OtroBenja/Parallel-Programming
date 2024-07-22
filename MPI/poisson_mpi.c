@@ -1,12 +1,11 @@
+#include <mpi.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "mpi.h"
+#include <time.h>
 
 //#define N 64
 #define MAX_ITERATIONS 10000
-#define TOLERANCE 1.0E-12
-#define BLOCKS 4
-#define PROCESS 2
+#define TOLERANCE 1.0E-6
 
 void functionRho(int rows,int cols,float *rho){
     for(int i=0;i<rows*cols;i++){
@@ -18,18 +17,6 @@ void functionRho(int rows,int cols,float *rho){
     rho[cols*(rows*2/3) +cols*7/12] =  1;
     rho[cols*(rows/2  ) +cols*5/12] = -2;
     rho[cols*(rows/2  ) +cols*5/6 ] = -2;
-    //rho[cols*2 + cols/6   ] =  1;
-    //rho[cols*2 + cols*7/12] =  1;
-    //rho[cols*2 + cols/6   ] =  1;
-    //rho[cols*2 + cols*7/12] =  1;
-    //rho[cols*2 + cols*5/12] = -2;
-    //rho[cols*2 + cols*5/6 ] = -2;
-    //rho[cols*(rows/3  ) ] =  1;
-    //rho[cols*(rows/3  ) ] =  1;
-    //rho[cols*(rows*2/3) ] =  1;
-    //rho[cols*(rows*2/3) ] =  1;
-    //rho[cols*(rows/2  ) ] = -2;
-    //rho[cols*(rows/2  ) ] = -2;
 }
 
 void fprint_field(int rows, int cols, float* field, char *filename){
@@ -46,6 +33,15 @@ void fprint_field(int rows, int cols, float* field, char *filename){
         fprintf(values_file,"%f,",field[cols*(rows-1) +j]);
     fprintf(values_file,"%f",field[rows*cols-1]);
     fclose(values_file);
+}
+
+void fprint_log(int numP, float execTime, int numIter, float finalError, char *date){
+    char strBuff[50];
+    snprintf(strBuff, sizeof(strBuff), "Log_%s.txt", date);
+    FILE* log_file = fopen(strBuff,"w");
+
+    fprintf(log_file,"Iteration type: MPI 2D\nNumber of processes: %d\nTotal time: %f"
+        "\nTotal iterations: %d\nFinal error: %f",numP,execTime,numIter,finalError);
 }
 
 void main(int argc, char *argv[]){
@@ -157,10 +153,10 @@ void main(int argc, char *argv[]){
     MPI_Scatter(bufferPhi, rowChunk*colChunk, MPI_FLOAT, myChunk, rowChunk*colChunk, MPI_FLOAT, 0, MPI_COMM_WORLD);
     MPI_Scatter(bufferRho, rowChunk*colChunk, MPI_FLOAT, myRho,   rowChunk*colChunk, MPI_FLOAT, 0, MPI_COMM_WORLD);
     //Iterate the algorithm for every chunk
-    int t;
+    int iter;
     float diff = 2.0 + TOLERANCE;
     float myDiff;
-    for(t=0;t<MAX_ITERATIONS && diff>TOLERANCE;t++){
+    for(iter=0; ((iter<MAX_ITERATIONS) && (diff>TOLERANCE)); iter++){
         //Share data from adjacent chunks
         //Share data with chunks below
         if(myP < (chunkRows-1)*chunkCols){
@@ -252,15 +248,21 @@ void main(int argc, char *argv[]){
         }
     }
 
-
     float final_time = MPI_Wtime();
     float delta_time = final_time-initial_time;
 
-    //Save results to file
-    printf("In process %d:\nTotal time: %f\nTotal iterations: %d\nFinal error: %f\n\n",myP,delta_time,t,diff);
     if(myP==0){
+        //Save results to file
         char *fname = "Phi_solution";
-        fprint_field(rows, cols, phi, fname);
+        time_t t = time(NULL);
+        struct tm tm = *localtime(&t);
+        char date[20];
+        snprintf(date, sizeof(date), "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
+        char finalFname[40];
+        snprintf(finalFname, sizeof(finalFname), "%s_%s", fname, date);
+        fprint_field(rows, cols, phi, finalFname);
+        //Make log file with data about the execution
+        fprint_log(numberP, delta_time, iter, diff, date);
     }
 
     //End MPI processes
