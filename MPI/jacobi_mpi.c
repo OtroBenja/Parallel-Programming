@@ -32,9 +32,9 @@ void fprint_field(int rows, int cols, float* field, char *filename){
 void fprint_log(int numP, float execTime, int numIter, float finalError, char *date){
     char strBuff[50];
     snprintf(strBuff, sizeof(strBuff), "Log_%s.txt", date);
-    FILE* values_file = fopen(strBuff,"w");
+    FILE* log_file = fopen(strBuff,"w");
 
-    printf("Iteration type: MPI 1D\nNumber of processes: %d\nTotal time: %f"
+    fprintf(log_file,"Iteration type: MPI 1D\nNumber of processes: %d\nTotal time: %f"
         "\nTotal iterations: %d\nFinal error: %f",numP,execTime,numIter,finalError);
 }
 
