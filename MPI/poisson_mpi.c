@@ -1,16 +1,22 @@
 #include <mpi.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
 #include <time.h>
 
+//#define N 64
+#define MAX_ITERATIONS 10000
+#define TOLERANCE 1.0E-6
 
-void printOutput(int rows, int cols, float data[]){
-    
-    for (int i = 0; i < rows*cols; i++){
-        printf("%f ",data[i]);
-        if ((i+1)%cols == 0) printf("\n");
+void functionRho(int rows,int cols,float *rho){
+    for(int i=0;i<rows*cols;i++){
+        rho[i] = 0;
     }
+    rho[cols*(rows/3  ) +cols/6   ] =  1;
+    rho[cols*(rows/3  ) +cols*7/12] =  1;
+    rho[cols*(rows*2/3) +cols/6   ] =  1;
+    rho[cols*(rows*2/3) +cols*7/12] =  1;
+    rho[cols*(rows/2  ) +cols*5/12] = -2;
+    rho[cols*(rows/2  ) +cols*5/6 ] = -2;
 }
 
 void fprint_field(int rows, int cols, float* field, char *filename){
@@ -32,189 +38,221 @@ void fprint_field(int rows, int cols, float* field, char *filename){
 void fprint_log(int numP, float execTime, int numIter, float finalError, char *date){
     char strBuff[50];
     snprintf(strBuff, sizeof(strBuff), "Log_%s.txt", date);
-    FILE* values_file = fopen(strBuff,"w");
+    FILE* log_file = fopen(strBuff,"w");
 
-    printf("Iteration type: MPI 1D\nNumber of processes: %d\nTotal time: %f"
+    fprintf(log_file,"Iteration type: MPI 2D\nNumber of processes: %d\nTotal time: %f"
         "\nTotal iterations: %d\nFinal error: %f",numP,execTime,numIter,finalError);
 }
 
-void functionRho(int rows,int cols,float *rho){
-    for(int i=0;i<rows*cols;i++){
-        rho[i] = 0;
-    }
-    rho[cols*(rows/3  ) +cols/6   ] =  1;
-    rho[cols*(rows/3  ) +cols*7/12] =  1;
-    rho[cols*(rows*2/3) +cols/6   ] =  1;
-    rho[cols*(rows*2/3) +cols*7/12] =  1;
-    rho[cols*(rows/2  ) +cols*5/12] = -2;
-    rho[cols*(rows/2  ) +cols*5/6 ] = -2;
-}
+void main(int argc, char *argv[]){
 
-void readInput(int rows, int cols, float data[]){
+    MPI_Init(&argc,&argv);
+    int numberP;
+    MPI_Comm_size(MPI_COMM_WORLD,&numberP);
+    int myP;
+    MPI_Comm_rank(MPI_COMM_WORLD,&myP);
+    int rows = atoi(argv[1]);
+    int cols = atoi(argv[2]);
+    int chunkRows = atoi(argv[3]);
+    int chunkCols = atoi(argv[4]);
 
-    int partition = rows/4;
-
-    for (int i = 0; i < rows*cols; i++){
-        if (i < cols){
-            data[i] = -1.0;
-        } else if (i < partition*cols){
-            data[i] = 3.0;
-        } else if (i < 2*partition*cols){
-            data[i] = 2.0;
-        } else if (i < 3*partition*cols){
-            data[i] = 1.0;
-        } else if (i < 4*partition*cols){
-            data[i] = 0.0;
+    if(myP==0){
+        //Check for proper input
+        if(argc<5){
+            printf("Input should be ./Filename Rows Columns yChunks xChunks\n"
+                "- \'Rows\' must be a multiple of \'chunkRows\' and"
+                "\'Columns\' must be a multiple of \'chunkColumns\'\n"
+                "- \'chunkRows\'*\'chunkColumns\' must be equal or smaller than number of processes\n");
+            printf("\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        //Check that chunkRows fit in Rows
+        if(rows%chunkRows!=0){
+            printf("Rows must be a multiple of chunkRows, instead got rows: %d and chunkRows: %d\n",rows,chunkRows);
+            printf("\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        //Check that chunkCols fit in Cols
+        if(cols%chunkCols!=0){
+            printf("Cols must be a multiple of chunkCols, instead got cols: %d and chunkCols: %d\n",cols,chunkCols);
+            printf("\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
         }
 
-        if (i >= (rows-1)*cols){
-            data[i] = -1.0;
-        }
-    }
-}
-
-int main (int argc, char *argv[]){
-    // Initialise MPI
-    MPI_Init(&argc, &argv);
-
-    // Get number of processes
-    int numP;
-    MPI_Comm_size(MPI_COMM_WORLD, &numP);
-
-    // Get ID of process
-    int myID;
-    MPI_Comm_rank(MPI_COMM_WORLD, &myID);
-
-    if(argc < 4){
-        // Only first process prints message
-        if(myID == 0){
-            printf("Program should be called as ./jacobi rows cols errThreshold\n");
+        //Check that chunkRows*ChunkCols match number of processes
+        if(chunkCols*chunkRows != numberP){
+            printf("Number of processes does not match number of chunks, got a total"
+                "of %d chunks,""and %d processes\nPlease note that the number of chunks"
+                "is calculated as \'chunkRows\'*\'chunkCols\'\n",chunkCols*chunkRows,numberP);
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
     }
+    //Sync all processes and register the time
+    MPI_Barrier(MPI_COMM_WORLD);
+    float initial_time = MPI_Wtime();
 
-    int rows = atoi(argv[1]);
-    int cols = atoi(argv[2]);
-    float errThres = atof(argv[3]);
-
-    if ((rows < 1) || (cols < 1)){
-        // First process prints message
-        if(myID == 0){
-            printf("Number of rows and columns must be greater than 0.\n");
-            MPI_Abort(MPI_COMM_WORLD,1);
-        }
-    }
-
-    if(rows%numP){
-        // First process prints message
-        if(myID == 0){
-            printf("Number of rows must be a multiple of number of processes.\n");
-            MPI_Abort(MPI_COMM_WORLD,1);
-        }
-    }
-
-    float *data;
+    //Initialize values of f and phi
     float *rho;
-
-    if(myID == 0){
-        data = (float*) malloc( rows*cols*sizeof(float));
-        rho = (float*) malloc( rows*cols*sizeof(float));
-        readInput(rows, cols, data);
-        functionRho(rows, cols, rho);
+    float *phi;
+    if (myP==0){
+        rho = malloc(sizeof(float)*rows*cols);
+        phi = malloc(sizeof(float)*rows*cols);
+        functionRho(rows,cols,rho);
+        for(int i=0;i<rows*cols;i++)
+            phi[i] = rho[i];
+        char *fname = "Rho_field";
+        fprint_field(rows,cols,rho,fname);
     }
 
-    // The computation is divided by rows
-    int myRows = rows/numP;
+    //The whole space is divided into a grid of X and Y chunks
+    int rowChunk = rows/chunkRows;
+    int colChunk = cols/chunkCols;
+    
+    float *myChunk = malloc(sizeof(float)*rowChunk*colChunk);
+    float *myChunkNew = malloc(sizeof(float)*rowChunk*colChunk);
+    float *myRho = malloc(sizeof(float)*rowChunk*colChunk);
+    float *tempPointer;
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //Buffers for boundaries with other chunks
+    float *uRow = malloc(sizeof(float)*colChunk);
+    float *dRow = malloc(sizeof(float)*colChunk);
+    float *lCol = malloc(sizeof(float)*rowChunk);
+    float *rCol = malloc(sizeof(float)*rowChunk);
+    float *sendLCol = malloc(sizeof(float)*rowChunk);
+    float *sendRCol = malloc(sizeof(float)*rowChunk);
+    //Set boundaries buffer to zero
+    for(int i=0;i<rowChunk;i++){
+        lCol[i] = 0; 
+        rCol[i] = 0; 
+    }
+    for(int j=0;j<colChunk;j++){
+        uRow[j] = 0; 
+        dRow[j] = 0; 
+    }
+    //Rearrenge the matrix to distribute it properly
+    float *bufferPhi;
+    float *bufferRho;
+    if(myP==0){
+        bufferPhi = malloc(sizeof(float)*rows*cols);
+        bufferRho = malloc(sizeof(float)*rows*cols);
 
-    // Measure current time
-    double start = MPI_Wtime();
+        int n=0;
+        for(int pI=0; pI<chunkRows; pI++){
+            for(int pJ=0; pJ<chunkCols; pJ++){
+                for(int i=0; i<rowChunk; i++){
+                    for(int j=0; j<colChunk; j++){
+                        bufferPhi[n] = phi[cols*(rowChunk*pI +i) +colChunk*pJ +j];
+                        bufferRho[n] = rho[cols*(rowChunk*pI +i) +colChunk*pJ +j];
+                        n++;
+                    }
+                }
+            }
+        }
+    }
+    //Distribute the matrix over each chunk
+    MPI_Scatter(bufferPhi, rowChunk*colChunk, MPI_FLOAT, myChunk, rowChunk*colChunk, MPI_FLOAT, 0, MPI_COMM_WORLD);
+    MPI_Scatter(bufferRho, rowChunk*colChunk, MPI_FLOAT, myRho,   rowChunk*colChunk, MPI_FLOAT, 0, MPI_COMM_WORLD);
+    //Iterate the algorithm for every chunk
+    int iter;
+    float diff = 2.0 + TOLERANCE;
+    float myDiff;
+    for(iter=0; ((iter<MAX_ITERATIONS) && (diff>TOLERANCE)); iter++){
+        //Share data from adjacent chunks
+        //Share data with chunks below
+        if(myP < (chunkRows-1)*chunkCols){
+            MPI_Send(&myChunk[colChunk*(rowChunk-1)], colChunk, MPI_FLOAT, myP+chunkCols, 0, MPI_COMM_WORLD);
+            MPI_Recv(dRow,                          colChunk, MPI_FLOAT, myP+chunkCols, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+        //Share data with chunks above
+        if(myP > chunkCols-1){
+            MPI_Send(myChunk, colChunk, MPI_FLOAT, myP-chunkCols, 0, MPI_COMM_WORLD);
+            MPI_Recv(uRow,    colChunk, MPI_FLOAT, myP-chunkCols, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+        //Share data with chunks to the right
+        if(myP%chunkCols < chunkCols-1){
+            //Prepare column to send
+            for(int i=0;i<chunkRows;i++)
+                sendRCol[i] = myChunk[chunkCols*(i+1) -1];
+            MPI_Send(sendRCol, rowChunk, MPI_FLOAT, myP+1, 0, MPI_COMM_WORLD);
+            MPI_Recv(rCol,     rowChunk, MPI_FLOAT, myP+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+        //Share data with chunks to the left
+        if(myP%chunkCols > 0){
+            //Prepare column to send
+            for(int i=0;i<chunkRows;i++)
+                sendLCol[i] = myChunk[chunkCols*i];
+            MPI_Send(sendLCol, rowChunk, MPI_FLOAT, myP-1, 0, MPI_COMM_WORLD);
+            MPI_Recv(lCol,     rowChunk, MPI_FLOAT, myP-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
 
-    // Arrays for the chunk of data
-    float *myData = (float*) malloc( myRows*cols*sizeof(float));
-    float *myRho = (float*) malloc( myRows*cols*sizeof(float));
-    float *buff = (float*) malloc( myRows*cols*sizeof(float)); // Auxiliary array
+        //Iterate on left and right boundaries of chunk
+        for(int i=1;i<rowChunk-1;i++){
+            myChunkNew[colChunk*i] = 0.25*(myChunk[colChunk*(i+1)] +myChunk[colChunk*(i-1)] 
+                                +myChunk[colChunk*i+1] +lCol[i] -myRho[colChunk*i]);
+            myChunkNew[colChunk*(i+1)-1] = 0.25*(myChunk[colChunk*(i+2)-1] +myChunk[colChunk*i-1] 
+                                +rCol[i] +myChunk[colChunk*(i+1)-2] -myRho[colChunk*(i+1)-1]);
+        }
+        //Iterate on up and down boundaries of chunk
+        for(int j=1;j<colChunk-1;j++){
+            myChunkNew[j] = 0.25*(myChunk[colChunk+j] +uRow[j] 
+                                +myChunk[j+1] +myChunk[j-1] -myRho[j]);
+            myChunkNew[colChunk*(rowChunk-1)+j] = 0.25*(dRow[j] +myChunk[colChunk*(rowChunk-2)+j] 
+                                +myChunk[colChunk*(rowChunk-1)+j+1] +myChunk[colChunk*(rowChunk-1)+j-1] 
+                                -myRho[colChunk*(rowChunk-1)+j]);
+        }
+        //Iterate on all 4 corners
+        myChunkNew[0] = 0.25*(myChunk[colChunk] +uRow[0]
+                            +myChunk[1] +lCol[0] -myRho[0]);
+        myChunkNew[colChunk-1] = 0.25*(myChunk[2*colChunk-1] +uRow[colChunk-1]
+                            +rCol[0] +myChunk[colChunk-2] -myRho[colChunk-1]);
+        myChunkNew[colChunk*(rowChunk-1)] = 0.25*(dRow[0] +myChunk[colChunk*(rowChunk-2)] 
+                            +myChunk[colChunk*(rowChunk-1)+1] +lCol[rowChunk-1] -myRho[colChunk*(rowChunk-1)]);
+        myChunkNew[(colChunk+1)*(rowChunk-1)] = 0.25*(dRow[colChunk-1] +myChunk[colChunk*(rowChunk-2)+rowChunk-1] 
+                            +rCol[rowChunk-1] +myChunk[(colChunk+1)*(rowChunk-1)-1] -myRho[(colChunk+1)*(rowChunk-1)]);
 
-    // Scatter the input matrix
-    MPI_Scatter(data, myRows*cols, MPI_FLOAT, myData, myRows*cols, MPI_FLOAT, 0, MPI_COMM_WORLD);
-    MPI_Scatter(rho, myRows*cols, MPI_FLOAT, myRho, myRows*cols, MPI_FLOAT, 0, MPI_COMM_WORLD);
-    memcpy(buff, myData, myRows*cols*sizeof(float));
-
-    float error = errThres + 1.0;
-    float myError;
-
-    // buffers to receive boundary rows
-    float *prevRow = (float*) malloc( cols*sizeof(float));
-    float *nextRow = (float*) malloc( cols*sizeof(float));
-
-    //Register the number of iterations
-    int iter = 0;
-    while (error > errThres){
-	    if (myID > 0){
-	        // Send first row to previous process
-	        MPI_Send(myData, cols, MPI_FLOAT, myID-1, 0, MPI_COMM_WORLD);
-	        // Receive previous row from previous process
-	        MPI_Recv(prevRow, cols, MPI_FLOAT, myID-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	    }
-
-	    if (myID < numP-1){
-	        // Send last row to next process
-	        MPI_Send(&myData[(myRows-1)*cols], cols, MPI_FLOAT, myID+1, 0, MPI_COMM_WORLD);
-	        // Receive next row from next process
-	        MPI_Recv(nextRow, cols, MPI_FLOAT, myID+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	    }
-
-	    // Update the first row
-	    if ((myID > 0) && (myRows > 1)){
-	        for (int j=1; j < cols-1; j++){
-	            buff[j] = 0.25f*(myData[cols+j]+myData[j-1]+myData[j+1]+prevRow[j]-myRho[j]);
-	        }
-	    }
-
-	    // Update the main block
-	    for (int i=1; i < myRows-1; i++){
-	        for (int j=1; j < cols-1; j++){
-	            // calculate discrete Laplacian with 4-point stencil
-	            buff[i*cols+j] = 0.25f*(myData[(i+1)*cols+j]+myData[i*cols+j-1]+myData[i*cols+j+1]+myData[(i-1)*cols+j]-myRho[i*cols+j]);
-	        }
-	    }
-
-	    // Update the last row
-	    if ((myID < numP-1) && (myRows > 1)){
-	        for (int j=1; j < cols-1; j++){
-	            buff[(myRows-1)*cols+j] = 0.25f*(nextRow[j]+myData[(myRows-1)*cols+j-1]+myData[(myRows-1)*cols+j+1]+myData[(myRows-2)*cols+j]-myRho[(myRows-1)*cols+j]);
-	        }
-	    }
-
-	    // Calculate the local error
-	    myError = 0.0;
-	    for (int i=1; i < myRows; i++){
-	        for (int j=1; j < cols-1; j++){
-	            // Determine difference between data and buff
-	            myError += (myData[i*cols+j]-buff[i*cols+j])*(myData[i*cols+j]-buff[i*cols+j]);
-	        }
-        iter++;
-	    }
-
-    memcpy(myData, buff, myRows*cols*sizeof(float));
-
-    // Sum error of all processes and store in 'error' on all processes
-    MPI_Allreduce(&myError, &error, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+        //Iterate on the interior of chunks
+        for(int i=1;i<rowChunk-1;i++){
+            for(int j=1;j<colChunk-1;j++){
+                myChunkNew[colChunk*i+j] = 0.25*(myChunk[colChunk*(i+1)+j] +myChunk[colChunk*(i-1)+j] 
+                                    +myChunk[colChunk*i+j+1] +myChunk[colChunk*i+j-1] -myRho[colChunk*i+j]);
+            }
+        }
+        //Calculate squared error in each chunk
+        myDiff = 0;
+        for(int i=0;i<rowChunk;i++){
+            for(int j=0;j<colChunk;j++){
+                myDiff += (myChunkNew[colChunk*i+j]-myChunk[colChunk*i+j])*(myChunkNew[colChunk*i+j]-myChunk[colChunk*i+j]);
+            }
+        }
+        //Calculate total error
+        MPI_Allreduce(&myDiff, &diff, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+        //Exchange new and previous chunk values
+        tempPointer = myChunk;
+        myChunk = myChunkNew;
+        myChunkNew = tempPointer;
+    }
+    //Gather and rearrenge the whole matrix
+    MPI_Gather(myChunk, rowChunk*colChunk, MPI_FLOAT, bufferPhi, rowChunk*colChunk, MPI_FLOAT, 0, MPI_COMM_WORLD);
+    if(myP==0){
+        int n=0;
+        for(int pI=0; pI<chunkRows; pI++){
+            for(int pJ=0; pJ<chunkCols; pJ++){
+                for(int i=0; i<rowChunk; i++){
+                    for(int j=0; j<colChunk; j++){
+                        phi[cols*(rowChunk*pI +i) +colChunk*pJ +j] = bufferPhi[n];
+                        phi[cols*(rowChunk*pI +i) +colChunk*pJ +j] += 20;
+                        n++;
+                    }
+                }
+            }
+        }
     }
 
-    // Gather final matrix on process 0 for output
-    MPI_Gather(myData, myRows*cols, MPI_FLOAT, data, myRows*cols, MPI_FLOAT, 0, MPI_COMM_WORLD);
+    float final_time = MPI_Wtime();
+    float delta_time = final_time-initial_time;
 
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    // Measure current time
-    double end = MPI_Wtime();
-
-    if (myID == 0){
-        //printf("Time with %d processes: %f seconds.\n",numP,end-start);
-        //printf("Final error: %f\n",error);
-        //Print final results to a file
+    if(myP==0){
+        //Save results to file
         char *fname = "Phi_solution";
         time_t t = time(NULL);
         struct tm tm = *localtime(&t);
@@ -222,18 +260,12 @@ int main (int argc, char *argv[]){
         snprintf(date, sizeof(date), "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
         char finalFname[40];
         snprintf(finalFname, sizeof(finalFname), "%s_%s", fname, date);
-        fprint_field(rows, cols, data, finalFname);
+        fprint_field(rows, cols, phi, finalFname);
         //Make log file with data about the execution
-        fprint_log(numP,end-start,iter,error,date);
-        free(data);
+        fprint_log(numberP, delta_time, iter, diff, date);
     }
 
-    free(myData);
-    free(buff);
-    free(prevRow);
-    free(nextRow);
-
-    // Terminate MPI
+    //End MPI processes
     MPI_Finalize();
-
+    
 }
