@@ -84,6 +84,7 @@ void print_data(double** hist,int iterations,int maxR,double deltaR,int nB,int n
     FILE* data = fopen(fileName,"w");
 
     //Print all parameters
+    fprintf(data,"Execution type: Sequential CPU\n");
     fprintf(data,"Total simulation time: %lf\n",totalTime);
     fprintf(data,"R step size: %lf\n",deltaR);
     fprintf(data,"Maximum R: %d\n",maxR);

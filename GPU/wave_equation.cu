@@ -3,8 +3,8 @@
 #include <math.h>
 #include <time.h>
 
-#define SAVE_RES 500
-#define SAVE_ITERATION 1000
+#define SAVE_RES 50
+#define SAVE_ITERATION 100
 #define ITERATIONS 10000
 #define E 2.718281828
 #define C 1.0
@@ -26,7 +26,13 @@ __global__ void step_kernel(float* u,float* ut,float* new_u,float* dR,float* dT)
     ut[idx] += (*dT)*C*C*(u[idx+1]-2*u[idx]+u[idx-1])/((*dR)*(*dR));
     new_u[idx] = u[idx] + ut[idx]*(*dT);
 }
-__global__ void swap_float(float* &a, float* &b){
+__global__ void swap_float_device(float* &a, float* &b){
+    float* &temp = a;
+    a = b;
+    b = temp;
+}
+
+void swap_float_host(float* &a, float* &b){
     float* &temp = a;
     a = b;
     b = temp;
@@ -49,8 +55,10 @@ float** iteration(float* u,float deltaR,int maxR,int iterations,int save_iterati
     float*  RHistory = (float*)malloc(sizeof(float)*(nR/SAVE_RES));
     float** hist     = (float**)malloc(sizeof(float*)*3);
     int save_count = save_iteration;
-    int Nblock = 10;
+    //Calculate number of blocks nedeed
     int Nthread = 1024;
+    //int Nblock = 1 + (nR-1)/Nthread;
+    int Nblock = 1 + nR/Nthread;
 
     //Set constants for use in device
     cudaMemcpyToSymbol(dR,&deltaR,sizeof(float));
@@ -84,9 +92,10 @@ float** iteration(float* u,float deltaR,int maxR,int iterations,int save_iterati
         //Copy data to host
         cudaMemcpy(new_u,dnew_u,size,cudaMemcpyDeviceToHost);
         //Swap data in device
-        swap_float<<<1,1>>>(d_u,dnew_u);
+        swap_float_device<<<1,1>>>(d_u,dnew_u);
+        //swap_float_host(d_u,dnew_u);
         //Advance u at boundaries
-        new_u[0] = u[0] + ut[0]*deltaT;
+        new_u[0]    = u[0] + ut[0]*deltaT;
         new_u[nR-1] = u[nR-1] + ut[nR-1]*deltaT;
         //Swap data in host
         temp = u;
@@ -117,6 +126,7 @@ void print_data(float** hist,int iterations,int maxR,float deltaR,int nB,int nT,
     FILE* data = fopen(fileName,"w");
 
     //Print all parameters
+    fprintf(data,"Execution type: Global GPU\n");
     fprintf(data,"Total simulation time: %lf\n",totalTime);
     fprintf(data,"R step size: %lf\n",deltaR);
     fprintf(data,"Maximum R: %d\n",maxR);

@@ -10,6 +10,9 @@ def read_data(filename):
     text = ''
     params = {}
 
+    row = data.readline()
+    text += row
+    params.update({'type':row.split(':')[1]})
     params1 = ['time','deltaR']
     for i in range(2):
         row   = data.readline()
@@ -80,4 +83,4 @@ from os import listdir
 folder_files = listdir()
 folder_files = [f for f in folder_files if (f.startswith('Output') and f.endswith('.dat'))]
 final_file = folder_files[-1]
-animate_data('Output_162319.dat',ipf=2)
+animate_data(final_file,ipf=2)
