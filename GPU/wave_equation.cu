@@ -8,25 +8,27 @@
 #define ITERATIONS 10000
 #define E 2.718281828
 #define C 1.0
-
+#define DR 0.01
+#define DT 0.002
 
 float* initialize_field(float p0,float r0,float d,float q,float deltaR,int maxR){
-    int nR = maxR/deltaR;
+    int nR = maxR/DR;
     float* u = (float *)malloc(sizeof(float)*nR);
 
     //Calculate initial u
     for(int i=0;i<nR;i++){
-        u[i] = p0*pow(i*deltaR,3)*pow(E,-pow((i*deltaR-r0)/d,q));
+        u[i] = p0*pow(i*DR,3)*pow(E,-pow((i*DR-r0)/d,q));
     }
     return u;
 }
 
-__global__ void step_kernel(float* u,float* ut,float* new_u,float* dR,float* dT){
+__global__ void step_kernel(float* u,float* ut,float* new_u){
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    ut[idx] += (*dT)*C*C*(u[idx+1]-2*u[idx]+u[idx-1])/((*dR)*(*dR));
-    new_u[idx] = u[idx] + ut[idx]*(*dT);
+    ut[idx] += (DT)*C*C*(u[idx+1]-2*u[idx]+u[idx-1])/((DR)*(DR));
+    new_u[idx] = u[idx] + ut[idx]*(DT);
 }
-__global__ void swap_float_device(float* &a, float* &b){
+
+void swap_float_device(float* &a, float* &b){
     float* &temp = a;
     a = b;
     b = temp;
@@ -38,8 +40,8 @@ void swap_float_host(float* &a, float* &b){
     b = temp;
 }
 
-__constant__ float dR;
-__constant__ float dT;
+//__constant__ float dR;
+//__constant__ float dT;
 float** iteration(float* u,float deltaR,int maxR,int iterations,int save_iteration){
     int nR = maxR/deltaR;
     int size = sizeof(float)*nR;
@@ -61,8 +63,8 @@ float** iteration(float* u,float deltaR,int maxR,int iterations,int save_iterati
     int Nblock = 1 + nR/Nthread;
 
     //Set constants for use in device
-    cudaMemcpyToSymbol(dR,&deltaR,sizeof(float));
-    cudaMemcpyToSymbol(dT,&deltaT,sizeof(float));
+    //cudaMemcpyToSymbol(dR,&deltaR,sizeof(float));
+    //cudaMemcpyToSymbol(dT,&deltaT,sizeof(float));
 
     //Set initial ut and u_tt
     for(int i=0;i<nR;i++)
@@ -88,12 +90,12 @@ float** iteration(float* u,float deltaR,int maxR,int iterations,int save_iterati
         ut[nR-1] += deltaT*C*C*(2*u[nR-1] -5*u[nR-2] +4*u[nR-3] -1*u[nR-4])/(deltaR*deltaR);
         
         //calculate ut = (c^2 *u_xx)*dt and advance u with kernels
-        step_kernel<<<Nblock,Nthread>>>(d_u,d_ut,dnew_u,&dR,&dT);
+        step_kernel<<<Nblock,Nthread>>>(d_u,d_ut,dnew_u);
         //Copy data to host
         cudaMemcpy(new_u,dnew_u,size,cudaMemcpyDeviceToHost);
         //Swap data in device
-        swap_float_device<<<1,1>>>(d_u,dnew_u);
-        //swap_float_host(d_u,dnew_u);
+        //swap_float_device<<<1,1>>>(d_u,dnew_u);
+        swap_float_host(d_u,dnew_u);
         //Advance u at boundaries
         new_u[0]    = u[0] + ut[0]*deltaT;
         new_u[nR-1] = u[nR-1] + ut[nR-1]*deltaT;
@@ -102,7 +104,7 @@ float** iteration(float* u,float deltaR,int maxR,int iterations,int save_iterati
         u = new_u;
         new_u = temp;
         //Copy boundary values of u to device
-        cudaMemcpy(d_u,u,sizeof(float),cudaMemcpyHostToDevice);
+        cudaMemcpy(&d_u[0],&u[0],sizeof(float),cudaMemcpyHostToDevice);
         cudaMemcpy(&d_u[nR-1],&u[nR-1],sizeof(float),cudaMemcpyHostToDevice);
     }
         
