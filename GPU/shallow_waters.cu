@@ -11,15 +11,18 @@
 #define DR 0.01
 #define DT 0.002
 
-float* initialize_field(float p0,float r0,float d,float q,float deltaR,int maxR){
-    int nR = maxR/DR;
-    float* u = (float *)malloc(sizeof(float)*nR);
+float* initialize_field(float p0,float x0, float y0,float d,float q,float deltaR,int maxR){
+    int Nx = maxR/DR;
+    int Ny = maxR/DR;
+    float* h = (float*)malloc(sizeof(float)*Nx*Ny);
 
-    //Calculate initial u
-    for(int i=0;i<nR;i++){
-        u[i] = p0*pow(i*DR,3)*pow(E,-pow((i*DR-r0)/d,q));
+    //Set initial values of h
+    for(int x=0;x<Nx;x++){
+        for(int y=0;y<Ny;y++){
+            h[y*Nx+x] = 0;
+        }
     }
-    return u;
+    return h;
 }
 
 __global__ void step_kernel(float* u,float* ut,float* new_u){
@@ -42,20 +45,23 @@ void swap_float_host(float* &a, float* &b){
 
 //__constant__ float dR;
 //__constant__ float dT;
-float** iteration(float* u,float deltaR,int maxR,int iterations,int save_iteration){
-    int nR = maxR/deltaR;
-    int size = sizeof(float)*nR;
+float** iteration(float* h,float deltaR,int maxR,int iterations,int save_iteration){
+    int Nx = maxR/deltaR;
+    int Ny = maxR/deltaR;
+    int size = sizeof(float)*Nx*Ny;
     float deltaT=deltaR/5.;
-    float* temp;
-    float* ut    = (float*)malloc(size);
-    float* new_u = (float*)malloc(size);
-    float* d_u;    cudaMalloc((void **)&d_u,   size);
-    float* d_ut;   cudaMalloc((void **)&d_ut,  size);
-    float* dnew_u; cudaMalloc((void **)&dnew_u,size);
-    float*  UHistory = (float*)malloc(sizeof(float)*(nR/SAVE_RES)*(iterations/save_iteration));
-    float* UtHistory = (float*)malloc(sizeof(float)*(nR/SAVE_RES)*(iterations/save_iteration));
-    float*  RHistory = (float*)malloc(sizeof(float)*(nR/SAVE_RES));
-    float** hist     = (float**)malloc(sizeof(float*)*3);
+    float *temp_pointer;
+    float *vx = (float*)malloc(size);
+    float *vy = (float*)malloc(size);
+    float *new_vx = (float*)malloc(size);
+    float *new_vy = (float*)malloc(size);
+    float *device_h;    cudaMalloc((void **)&device_h,   size);
+    float *device_vx;   cudaMalloc((void **)&device_vx,  size);
+    float *device_vy;   cudaMalloc((void **)&device_vy,  size);
+    float *dnew_u; cudaMalloc((void **)&dnew_u,size);
+    float  *UHistory = (float*)malloc((iterations/save_iteration)*size/(SAVE_RES*SAVE_RES));
+    float  *RHistory = (float*)malloc(size/(SAVE_RES*SAVE_RES));
+    float **hist     = (float**)malloc(sizeof(float*)*3);
     int save_count = save_iteration;
     //Calculate number of blocks nedeed
     int Nthread = 1024;
@@ -100,9 +106,9 @@ float** iteration(float* u,float deltaR,int maxR,int iterations,int save_iterati
         new_u[0]    = u[0] + ut[0]*deltaT;
         new_u[nR-1] = u[nR-1] + ut[nR-1]*deltaT;
         //Swap data in host
-        temp = u;
+        temp_pointer = u;
         u = new_u;
-        new_u = temp;
+        new_u = temp_pointer;
         //Copy boundary values of u to device
         cudaMemcpy(&d_u[0],&u[0],sizeof(float),cudaMemcpyHostToDevice);
         cudaMemcpy(&d_u[nR-1],&u[nR-1],sizeof(float),cudaMemcpyHostToDevice);
@@ -165,12 +171,13 @@ void print_data(float** hist,int iterations,int maxR,float deltaR,int nB,int nT,
 int main(int argc, char* argv[]){
 
     //Asign host memory
-    float* u;
+    float* h;
     float** hist;
     
     //Define initial conditions
     float p0 = 0.001;
-    float r0 = 20.;
+    float x0 = 20.;
+    float y0 = 20.;
     float d = 3.;
     float q = 2.;
     
@@ -187,11 +194,11 @@ int main(int argc, char* argv[]){
     nB = 1;
     float deltaR = 0.01;
 
-    u = initialize_field(p0,r0,d,q,deltaR,maxR);
+    h = initialize_field(p0,x0,y0,d,q,deltaR,maxR);
 
     //Pass initial conditions to iteration
     clock_t initTime = clock();
-    hist = iteration(u,deltaR,maxR,iterations,SAVE_ITERATION);
+    hist = iteration(h,deltaR,maxR,iterations,SAVE_ITERATION);
     clock_t finalTime = clock();
     float  totalTime = (float)(finalTime-initTime) / CLOCKS_PER_SEC;
 
