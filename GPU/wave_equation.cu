@@ -179,10 +179,10 @@ int main(int argc, char* argv[]){
     if((argc>1) && atoi(argv[1])) iterations = atoi(argv[1]);
     int maxR = 80;
     if((argc>2) && atoi(argv[2])) maxR = atoi(argv[2]);
-    float nT = 1;
+    int nT = 1;
     if((argc>3) && atoi(argv[3])) nT = atoi(argv[3]);
     nT = 1;
-    float nB = 1;
+    int nB = 1;
     if((argc>4) && atoi(argv[4])) nB = atoi(argv[4]);
     nB = 1;
     float deltaR = 0.01;
