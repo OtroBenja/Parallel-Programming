@@ -10,6 +10,21 @@
 #define E  2.718281828
 #define C 1.0
 
+double leftmost_D1(double *f,int idx,double deltaR){
+    return (-25.0*f[idx] +48.0*f[idx+1] -36.0*f[idx+2] +16.0*f[idx+3] -3.0*f[idx+4])/(12.0*deltaR);
+}
+double leftmid_D1(double *f,int idx,double deltaR){
+    return (-3.0*f[idx-1] -10.0*f[idx] +18.0*f[idx+1] -6.0*f[idx+2] +1.0*f[idx+3])/(12.0*deltaR);
+}
+double centered_D1(double *f,int idx,double deltaR){
+    return (f[idx-2] -8.0*f[idx-1] +8.0*f[idx+1] -f[idx+2])/(12.0*deltaR);
+}
+double rightmid_D1(double *f,int idx,double deltaR){
+    return (-1.0*f[idx-3] +6.0*f[idx-2] -18.0*f[idx-1] +10.0*f[idx] +3.0*f[idx+1])/(12.0*deltaR);
+}
+double rightmost_D1(double *f,int idx,double deltaR){
+    return (3.0*f[idx-4] -16.0*f[idx-3] +36.0*f[idx-2] -48.0*f[idx-1] +25.0*f[idx])/(12.0*deltaR);
+}
 
 float* initialize_field(float p0,float x0, float y0,float q,float deltaR,int maxX,int maxY){
     float deltaX = deltaR;
@@ -18,12 +33,6 @@ float* initialize_field(float p0,float x0, float y0,float q,float deltaR,int max
     int Ny = maxY/deltaR;
     float* h = malloc(sizeof(float)*Nx*Ny);
 
-    //Set initial values of h
-    //for(int y=0;y<Ny;y++){
-    //    for(int x=0;x<Nx;x++){
-    //        h[y*Nx+x] = 1;
-    //    }
-    //}
     for(int y=0;y<Ny;y++){
         for(int x=0;x<Nx;x++){
             h[y*Nx+x] = 1.0+ p0*powf(E,-(pow(x*deltaX-x0,2)+pow(y*deltaY-y0,2))/q);
@@ -39,7 +48,7 @@ float** iteration(float* h,float deltaR,int maxX,int maxY,int iterations,int sav
     int Ny = maxY/deltaY;
     float g = 9.8;
     int size = sizeof(float)*Nx*Ny;
-    float deltaT=deltaR/10.;
+    float deltaT=deltaR/50.;
     float *u   = malloc(sizeof(float)*Nx*Ny);
     float *v   = malloc(sizeof(float)*Nx*Ny);
     float *hu = malloc(size);
@@ -79,6 +88,24 @@ float** iteration(float* h,float deltaR,int maxX,int maxY,int iterations,int sav
         }
         save_count+=1;
 
+        //Set borders for boundary condition
+        for(int x=0;x<Nx;x++){
+             h[x] =  h[Nx +x];
+            hu[x] = hu[Nx +x];
+            hv[x] = hv[Nx +x];
+             h[Nx*(Ny-1)+x] = h [Nx*(Ny-2)+x];
+            hu[Nx*(Ny-1)+x] = hu[Nx*(Ny-2)+x];
+            hv[Nx*(Ny-1)+x] = hv[Nx*(Ny-2)+x];
+        }
+        for(int y=0;y<Ny;y++){
+             h[Nx*y] =  h[Nx*(y+1)];
+            hu[Nx*y] = hu[Nx*(y+1)];
+            hv[Nx*y] = hv[Nx*(y+1)];
+             h[Nx*y+Nx-1] = h [Nx*y+Nx-2];
+            hu[Nx*y+Nx-1] = hu[Nx*y+Nx-2];
+            hv[Nx*y+Nx-1] = hv[Nx*y+Nx-2];
+        }
+
         //calculate half step for h, h*u and h*v
         for(int y=0;y<Ny;y++){
             for(int x=0;x<Nx-1;x++){
@@ -91,14 +118,6 @@ float** iteration(float* h,float deltaR,int maxX,int maxY,int iterations,int sav
                                           -u[Nx*y+x  ]* u[Nx*y+x  ]*h[Nx*y+x  ] -0.5*g*h[Nx*y+x  ]*h[Nx*y+x  ])/deltaX;
             }
         }
-        for(int x=0;x<Nx-1;x++){
-             h_i05[x] = 1.0;
-            hv_i05[x] = 0.0;
-            hu_i05[x] = 0.0;
-             h_i05[(Nx-1)*(Ny-1)+x] = 1.0;
-            hv_i05[(Nx-1)*(Ny-1)+x] = 0.0;
-            hu_i05[(Nx-1)*(Ny-1)+x] = 0.0;
-        }
 
         for(int y=0;y<Ny-1;y++){
             for(int x=0;x<Nx;x++){
@@ -110,14 +129,6 @@ float** iteration(float* h,float deltaR,int maxX,int maxY,int iterations,int sav
                           +0.5*deltaT*(v[Nx*(y+1)+x]* v[Nx*(y+1)+x]*h[Nx*(y+1)+x] +0.5*g*h[Nx*(y+1)+x]*h[Nx*(y+1)+x]
                                       -v[Nx* y   +x]* v[Nx* y   +x]*h[Nx* y   +x] -0.5*g*h[Nx* y   +x]*h[Nx* y   +x])/deltaY;
             }
-        }
-        for(int y=0;y<Ny-1;y++){
-                 h_j05[Nx*y     ] = 1.0;
-                hu_j05[Nx*y     ] = 0.0;
-                hv_j05[Nx*y     ] = 0.0;
-                 h_j05[Nx*y+Nx-1] = 1.0;
-                hu_j05[Nx*y+Nx-1] = 0.0;
-                hv_j05[Nx*y+Nx-1] = 0.0;
         }
 
         //Calculate next step for h, h*u and h*v using the previous half step
@@ -201,10 +212,10 @@ void main(int argc, char* argv[]){
     
     //Define initial conditions
     int fType = 0;
-    float p0 = 0.6;
-    float x0 = 8.0;
-    float y0 = 8.0;
-    float q = 0.5;
+    float p0 = 0.4;
+    float x0 = 10.0;
+    float y0 = 25.0;
+    float q = 1.5;
     
     //Define simulation limits
     int iterations = ITERATIONS;
