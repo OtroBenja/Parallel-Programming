@@ -41,7 +41,7 @@ float* initialize_field(float p0,float x0, float y0,float q,float deltaR,int max
     return h;
 }
 
-float** iteration(float* h,float deltaR,int maxX,int maxY,int iterations,int save_iteration){
+float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int save_iteration){
     float deltaX = deltaR;
     float deltaY = deltaR;
     int Nx = maxX/deltaX;
@@ -159,7 +159,7 @@ float** iteration(float* h,float deltaR,int maxX,int maxY,int iterations,int sav
     return hist;
 }
 
-void print_data(float** hist,int iterations,int maxX,int maxY,float deltaR,int nB,int nT,float totalTime){
+void print_data(float** hist,int iterations,float maxX,float maxY,float deltaR,int nB,int nT,float totalTime){
     float deltaX = deltaR;
     float deltaY = deltaR;
     int Nx = maxX/deltaX;
@@ -188,9 +188,9 @@ void print_data(float** hist,int iterations,int maxX,int maxY,float deltaR,int n
     //Print all parameters
     fprintf(metaFile,"Execution type: Sequential CPU\n");
     fprintf(metaFile,"Total simulation time: %lf\n",totalTime);
-    fprintf(metaFile,"R step size: %lf\n",deltaR);
-    fprintf(metaFile,"Maximum X: %d\n",maxX);
-    fprintf(metaFile,"Maximum Y: %d\n",maxY);
+    fprintf(metaFile,"R step size: %f\n",deltaR);
+    fprintf(metaFile,"Maximum X: %f\n",maxX);
+    fprintf(metaFile,"Maximum Y: %f\n",maxY);
     fprintf(metaFile,"Iterations: %d\n",iterations);
     fprintf(metaFile,"Number of blocks: %d\n",nB);
     fprintf(metaFile,"Number of threads: %d\n",nT);
@@ -220,8 +220,8 @@ void main(int argc, char* argv[]){
     //Define simulation limits
     int iterations = ITERATIONS;
     if((argc>1) && atoi(argv[1])) iterations = atoi(argv[1]);
-    int maxX = 20;
-    int maxY = 30;
+    float maxX = 20;
+    float maxY = 30;
     if((argc>2) && atoi(argv[2])) maxX = atoi(argv[2]);
     if((argc>3) && atoi(argv[3])) maxY = atoi(argv[3]);
     float nT = 1;
