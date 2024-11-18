@@ -168,8 +168,8 @@ void evolve_fields(float *U0, float *U1, float *U2, float *U0_np1, float *U1_np1
 void print_data(float** hist,int iterations,int maxX,int maxY,float deltaR,int nB,int nT,float totalTime){
   float deltaX = deltaR;
   float deltaY = deltaR;
-  int Nx = maxX/deltaX;
-  int Ny = maxY/deltaY;
+  int Nx = (int)(maxX/deltaX);
+  int Ny = (int)(maxY/deltaY);
   int print_iterations = iterations/SAVE_ITERATION;
   //Add time to filename
   time_t t = time(NULL);
@@ -197,17 +197,17 @@ void print_data(float** hist,int iterations,int maxX,int maxY,float deltaR,int n
   fprintf(metaFile,"Number of threads: %d\n",nT);
 
   //Print R to binary
-  fwrite(hist[0],sizeof(float)*(Nx-2),1,xFile);
-  fwrite(hist[1],sizeof(float)*(Ny-2),1,yFile);
+  fwrite(hist[0],sizeof(float)*Nx,1,xFile);
+  fwrite(hist[1],sizeof(float)*Ny,1,yFile);
   //Print data to binary
-  fwrite(hist[2],sizeof(float)*(Nx-2)*(Ny-2)*(iterations/SAVE_ITERATION),1,binFile);
+  fwrite(hist[2],sizeof(float)*Nx*Ny*(iterations/SAVE_ITERATION),1,binFile);
 }
 
 
 int main(){
 
   int N = 1000;
-  int Nt = 1000;
+  int Nt = 2000;
 
   int count = 0;
 
@@ -218,8 +218,8 @@ int main(){
   int maxX = N*dx;
   int maxY = N*dx;
 
-  float x0 = -0.3;
-  float y0 = -0.3;
+  float x0 = -3;
+  float y0 = -3;
   float sigma = 0.001;
   float A = 0.01;
 
