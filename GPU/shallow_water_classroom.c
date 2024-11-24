@@ -3,7 +3,6 @@
 #include <math.h>
 #include <time.h>
 
-#define SAVE_RES 500
 #define SAVE_ITERATION 10
 
 void output_height(float *U0, int N){

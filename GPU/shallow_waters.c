@@ -48,7 +48,7 @@ float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int
     int Ny = maxY/deltaY;
     float g = 9.8;
     int size = sizeof(float)*Nx*Ny;
-    float deltaT=deltaR/50.;
+    float deltaT=deltaR/20.;
     float *u   = malloc(sizeof(float)*Nx*Ny);
     float *v   = malloc(sizeof(float)*Nx*Ny);
     float *hu = malloc(size);
@@ -90,20 +90,28 @@ float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int
 
         //Set borders for boundary condition
         for(int x=0;x<Nx;x++){
-             h[x] =  h[Nx +x];
-            hu[x] = hu[Nx +x];
-            hv[x] = hv[Nx +x];
-             h[Nx*(Ny-1)+x] = h [Nx*(Ny-2)+x];
-            hu[Nx*(Ny-1)+x] = hu[Nx*(Ny-2)+x];
-            hv[Nx*(Ny-1)+x] = hv[Nx*(Ny-2)+x];
+             h[x] =  h[Nx*1 +x];
+             u[x] = -u[Nx*1 +x];
+             v[x] = 0;//v[Nx*1 +x];
+            hu[x] = -hu[Nx*1 +x];
+            hv[x] = 0;//hv[Nx*1 +x];
+             h[Nx*(Ny-1)+x] =  h[Nx*(Ny-2)+x];
+             u[Nx*(Ny-1)+x] = -u[Nx*(Ny-2)+x];
+             v[Nx*(Ny-1)+x] = 0;//v[Nx*(Ny-2)+x];
+            hu[Nx*(Ny-1)+x] = -hu[Nx*(Ny-2)+x];
+            hv[Nx*(Ny-1)+x] = 0;//hv[Nx*(Ny-2)+x];
         }
         for(int y=0;y<Ny;y++){
-             h[Nx*y] =  h[Nx*(y+1)];
-            hu[Nx*y] = hu[Nx*(y+1)];
-            hv[Nx*y] = hv[Nx*(y+1)];
-             h[Nx*y+Nx-1] = h [Nx*y+Nx-2];
-            hu[Nx*y+Nx-1] = hu[Nx*y+Nx-2];
-            hv[Nx*y+Nx-1] = hv[Nx*y+Nx-2];
+             h[Nx*y] =  h[Nx*y +1];
+             u[Nx*y] = 0;//u[Nx*y +1];
+             v[Nx*y] = -v[Nx*y +1];
+            hu[Nx*y] = 0;//hu[Nx*y +1];
+            hv[Nx*y] = -hv[Nx*y +1];
+             h[Nx*y+Nx-1] =  h[Nx*y+Nx-2];
+             u[Nx*y+Nx-1] = 0;//u[Nx*y+Nx-2];
+             v[Nx*y+Nx-1] = -v[Nx*y+Nx-2];
+            hu[Nx*y+Nx-1] = 0;//hu[Nx*y+Nx-2];
+            hv[Nx*y+Nx-1] = -hv[Nx*y+Nx-2];
         }
 
         //calculate half step for h, h*u and h*v
