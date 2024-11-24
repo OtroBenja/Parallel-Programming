@@ -41,88 +41,140 @@ float* initialize_field(float p0,float x0, float y0,float q,float deltaR,int max
     return h;
 }
 
+__global__ void boundary_kernel(float *h, float *u, float *v, float *hu, float *hv){
+    int x = threadIdx.x + blockIdx.x*blockDim.x;
+    int y = threadIdx.y + blockIdx.y*blockDim.y;
+    int Nx = blockDim.x*gridDim.x;
+    int Ny = blockDim.y*gridDim.y;
+    //Set boundary conditions
+    //for(int x=0;x<Nx;x++){
+    if(y==0){
+            h[x] =  h[Nx*1 +x];
+            u[x] = -u[Nx*1 +x];
+            v[x] = 0;//v[Nx*1 +x];
+        hu[x] = -hu[Nx*1 +x];
+        hv[x] = 0;//hv[Nx*1 +x];
+    }
+            h[Nx*(Ny-1)+x] =  h[Nx*(Ny-2)+x];
+            u[Nx*(Ny-1)+x] = -u[Nx*(Ny-2)+x];
+            v[Nx*(Ny-1)+x] = 0;//v[Nx*(Ny-2)+x];
+        hu[Nx*(Ny-1)+x] = -hu[Nx*(Ny-2)+x];
+        hv[Nx*(Ny-1)+x] = 0;//hv[Nx*(Ny-2)+x];
+    //for(int y=0;y<Ny;y++){
+            h[Nx*y] =  h[Nx*y +1];
+            u[Nx*y] = 0;//u[Nx*y +1];
+            v[Nx*y] = -v[Nx*y +1];
+        hu[Nx*y] = 0;//hu[Nx*y +1];
+        hv[Nx*y] = -hv[Nx*y +1];
+            h[Nx*y+Nx-1] =  h[Nx*y+Nx-2];
+            u[Nx*y+Nx-1] = 0;//u[Nx*y+Nx-2];
+            v[Nx*y+Nx-1] = -v[Nx*y+Nx-2];
+        hu[Nx*y+Nx-1] = 0;//hu[Nx*y+Nx-2];
+        hv[Nx*y+Nx-1] = -hv[Nx*y+Nx-2];
+}
+
+__global__ void half_i_kernel(float *h, float *u, float *v, float *hu, float *hv
+                              float *h_i05, float *hu_i05, float *hv_i05
+                              float deltaX, float deltaT){
+    int x = threadIdx.x + blockIdx.x*blockDim.x;
+    int y = threadIdx.y + blockIdx.y*blockDim.y;
+    int Nx = blockDim.x*gridDim.x;
+    int Ny = blockDim.y*gridDim.y;
+
+    //for(int y=0;y<Ny;y++){
+    //    for(int x=0;x<Nx-1;x++){
+    if(x<Nx-1){
+            h_i05[(Nx-1)*y+x] = 0.5*( h[Nx*y+x+1]+ h[Nx*y+x  ])+0.5*deltaT*(hu[Nx*y+x+1]-hu[Nx*y+x])/deltaX;
+        hv_i05[(Nx-1)*y+x] = 0.5*(hv[Nx*y+x+1]+hv[Nx*y+x  ])
+                        +0.5*deltaT*(h[Nx*y+x+1]* u[Nx*y+x+1]*v[Nx*y+x+1]
+                                    -h[Nx*y+x  ]* u[Nx*y+x  ]*v[Nx*y+x  ])/deltaX;
+        hu_i05[(Nx-1)*y+x] = 0.5*(hu[Nx*y+x+1]+hu[Nx*y+x  ])
+                        +0.5*deltaT*(u[Nx*y+x+1]* u[Nx*y+x+1]*h[Nx*y+x+1] +0.5*g*h[Nx*y+x+1]*h[Nx*y+x+1]
+                                    -u[Nx*y+x  ]* u[Nx*y+x  ]*h[Nx*y+x  ] -0.5*g*h[Nx*y+x  ]*h[Nx*y+x  ])/deltaX;
+    }
+}
+
+__global__ void half_j_kernel(float *h, float *u, float *v, float *hu, float *hv
+                              float *h_j05, float *hu_j05, float *hv_j05
+                              float deltaY, float deltaT){
+    int x = threadIdx.x + blockIdx.x*blockDim.x;
+    int y = threadIdx.y + blockIdx.y*blockDim.y;
+    int Nx = blockDim.x*gridDim.x;
+    int Ny = blockDim.y*gridDim.y;
+
+    //for(int y=0;y<Ny-1;y++){
+    //    for(int x=0;x<Nx;x++){
+    if(y<Ny-1){
+        h_j05[Nx*y+x] = 0.5*( h[Nx*(y+1)+x]+ h[Nx* y   +x])+0.5*deltaT*(hv[Nx*(y+1)+x]-hv[Nx*y+x])/deltaY;
+        hu_j05[Nx*y+x] = 0.5*(hu[Nx*(y+1)+x]+hu[Nx* y   +x])
+                +0.5*deltaT*(h[Nx*(y+1)+x]* u[Nx*(y+1)+x]*v[Nx*(y+1)+x]
+                            -h[Nx* y   +x]* u[Nx* y   +x]*v[Nx* y   +x])/deltaY;
+        hv_j05[Nx*y+x] = 0.5*(hv[Nx*(y+1)+x]+hv[Nx* y   +x])
+                +0.5*deltaT*(v[Nx*(y+1)+x]* v[Nx*(y+1)+x]*h[Nx*(y+1)+x] +0.5*g*h[Nx*(y+1)+x]*h[Nx*(y+1)+x]
+                            -v[Nx* y   +x]* v[Nx* y   +x]*h[Nx* y   +x] -0.5*g*h[Nx* y   +x]*h[Nx* y   +x])/deltaY;
+    }
+}
+
+
+__global__ void laststep_kernel(float *h, float *u, float *v, float *hu, float *hv
+                                float *h_i05, float *hu_i05, float *hv_i05
+                                float *h_j05, float *hu_j05, float *hv_j05
+                                float deltaX, float deltaY,  float deltaT){
+    int x = threadIdx.x + blockIdx.x*blockDim.x;
+    int y = threadIdx.y + blockIdx.y*blockDim.y;
+    int Nx = blockDim.x*gridDim.x;
+    int Ny = blockDim.y*gridDim.y;
+
+    
+    //Calculate next step for h, h*u and h*v using the previous half step
+    //for(int y=1;y<Ny-1;y++){
+    //    for(int x=1;x<Nx-1;x++){
+     h[Nx*y+x] += deltaT*(hu_i05[(Nx-1)*y+x  ]-hu_i05[(Nx-1)*y+x-1])/deltaX +deltaT*(hv_j05[Nx*y+x]-hv_j05[Nx*(y-1)+x])/deltaY;
+    hu[Nx*y+x] += deltaT*(hu_j05[Nx* y   +x]*hv_j05[Nx* y   +x]/h_j05[Nx* y   +x]
+                            -hu_j05[Nx*(y-1)+x]*hv_j05[Nx*(y-1)+x]/h_j05[Nx*(y-1)+x])/deltaY
+                    +deltaT*(hu_i05[(Nx-1)*y+x  ]*hu_i05[(Nx-1)*y+x  ]/h_i05[(Nx-1)*y+x  ] +0.5*g*h_i05[(Nx-1)*y+x  ]*h_i05[(Nx-1)*y+x  ]
+                            -hu_i05[(Nx-1)*y+x-1]*hu_i05[(Nx-1)*y+x-1]/h_i05[(Nx-1)*y+x-1] -0.5*g*h_i05[(Nx-1)*y+x-1]*h_i05[(Nx-1)*y+x-1])/deltaX;   
+    hv[Nx*y+x] += deltaT*(hu_i05[(Nx-1)*y+x  ]*hv_i05[(Nx-1)*y+x  ]/h_i05[(Nx-1)*y+x  ]
+                            -hu_i05[(Nx-1)*y+x-1]*hv_i05[(Nx-1)*y+x-1]/h_i05[(Nx-1)*y+x-1])/deltaX
+                    +deltaT*(hu_j05[Nx* y   +x]*hu_j05[Nx* y   +x]/h_j05[Nx* y   +x] +0.5*g*h_j05[Nx* y   +x]*h_j05[Nx* y   +x]
+                            -hu_j05[Nx*(y-1)+x]*hu_j05[Nx*(y-1)+x]/h_j05[Nx*(y-1)+x] -0.5*g*h_j05[Nx*(y-1)+x]*h_j05[Nx*(y-1)+x])/deltaY;
+    u[Nx*y+x] = hu[Nx*y+x]/h[Nx*y+x];
+    v[Nx*y+x] = hv[Nx*y+x]/h[Nx*y+x];
+}
+
 __global__ void iterate_kernel(float *h, float *u, float *v, float *hu, float *hv,
                                float *h_i05, float *hu_i05, float *hv_i05,
                                float *h_j05, float *hu_j05, float *hv_j05,
                                int iterations, int deltaX, int deltaY, int deltaT,
-                               float g){//TO DO: Assign g as constant memory
+                               float g){//TO DO: Assign g, dX, dY, dT, Nx, and Ny as constant memory
     int x = threadIdx.x + blockIdx.x*blockDim.x;
     int y = threadIdx.y + blockIdx.y*blockDim.y;
     int Nx = blockDim.x*gridDim.x;
     int Ny = blockDim.y*gridDim.y;
     for(int i=0;i<iterations;i++){
+        
+        //Launch kernel for boundary conditions
+        boundary_kernel(h,u,v,hu,hv);
 
-        //Set boundary conditions
+        //Wait for previous kernel here
+        
+        //Launch kernels for half-step iteration
+        half_i_kernel(h,u,v,hu,hv,
+                      h_i05,hu_i05,hv_i05,
+                      deltaX, deltaT);
+        half_j_kernel(h,u,v,hu,hv,
+                      h_j05,hu_j05,hv_j05,
+                      deltaY, deltaT);
 
-        //for(int x=0;x<Nx;x++){
-        if(y==0){
-             h[x] =  h[Nx*1 +x];
-             u[x] = -u[Nx*1 +x];
-             v[x] = 0;//v[Nx*1 +x];
-            hu[x] = -hu[Nx*1 +x];
-            hv[x] = 0;//hv[Nx*1 +x];
-        }
-             h[Nx*(Ny-1)+x] =  h[Nx*(Ny-2)+x];
-             u[Nx*(Ny-1)+x] = -u[Nx*(Ny-2)+x];
-             v[Nx*(Ny-1)+x] = 0;//v[Nx*(Ny-2)+x];
-            hu[Nx*(Ny-1)+x] = -hu[Nx*(Ny-2)+x];
-            hv[Nx*(Ny-1)+x] = 0;//hv[Nx*(Ny-2)+x];
-        //for(int y=0;y<Ny;y++){
-             h[Nx*y] =  h[Nx*y +1];
-             u[Nx*y] = 0;//u[Nx*y +1];
-             v[Nx*y] = -v[Nx*y +1];
-            hu[Nx*y] = 0;//hu[Nx*y +1];
-            hv[Nx*y] = -hv[Nx*y +1];
-             h[Nx*y+Nx-1] =  h[Nx*y+Nx-2];
-             u[Nx*y+Nx-1] = 0;//u[Nx*y+Nx-2];
-             v[Nx*y+Nx-1] = -v[Nx*y+Nx-2];
-            hu[Nx*y+Nx-1] = 0;//hu[Nx*y+Nx-2];
-            hv[Nx*y+Nx-1] = -hv[Nx*y+Nx-2];
+        //Wait for previous kernels here
 
-        //Wait for all threads here
+        //Launch kernel for final step
+        laststep_kernel(h,u,v,hu,hv,
+                        h_i05,hu_i05,hv_i05,
+                        h_j05,hu_j05,hv_j05,
+                        deltaX, deltaY, deltaT);
 
-        //for(int y=0;y<Ny;y++){
-        //    for(int x=0;x<Nx-1;x++){
-        if(x<Nx-1){
-             h_i05[(Nx-1)*y+x] = 0.5*( h[Nx*y+x+1]+ h[Nx*y+x  ])+0.5*deltaT*(hu[Nx*y+x+1]-hu[Nx*y+x])/deltaX;
-            hv_i05[(Nx-1)*y+x] = 0.5*(hv[Nx*y+x+1]+hv[Nx*y+x  ])
-                          +0.5*deltaT*(h[Nx*y+x+1]* u[Nx*y+x+1]*v[Nx*y+x+1]
-                                      -h[Nx*y+x  ]* u[Nx*y+x  ]*v[Nx*y+x  ])/deltaX;
-            hu_i05[(Nx-1)*y+x] = 0.5*(hu[Nx*y+x+1]+hu[Nx*y+x  ])
-                          +0.5*deltaT*(u[Nx*y+x+1]* u[Nx*y+x+1]*h[Nx*y+x+1] +0.5*g*h[Nx*y+x+1]*h[Nx*y+x+1]
-                                      -u[Nx*y+x  ]* u[Nx*y+x  ]*h[Nx*y+x  ] -0.5*g*h[Nx*y+x  ]*h[Nx*y+x  ])/deltaX;
-        }
-
-        //for(int y=0;y<Ny-1;y++){
-        //    for(int x=0;x<Nx;x++){
-        if(y<Ny-1){
-            h_j05[Nx*y+x] = 0.5*( h[Nx*(y+1)+x]+ h[Nx* y   +x])+0.5*deltaT*(hv[Nx*(y+1)+x]-hv[Nx*y+x])/deltaY;
-            hu_j05[Nx*y+x] = 0.5*(hu[Nx*(y+1)+x]+hu[Nx* y   +x])
-                    +0.5*deltaT*(h[Nx*(y+1)+x]* u[Nx*(y+1)+x]*v[Nx*(y+1)+x]
-                                -h[Nx* y   +x]* u[Nx* y   +x]*v[Nx* y   +x])/deltaY;
-            hv_j05[Nx*y+x] = 0.5*(hv[Nx*(y+1)+x]+hv[Nx* y   +x])
-                    +0.5*deltaT*(v[Nx*(y+1)+x]* v[Nx*(y+1)+x]*h[Nx*(y+1)+x] +0.5*g*h[Nx*(y+1)+x]*h[Nx*(y+1)+x]
-                                -v[Nx* y   +x]* v[Nx* y   +x]*h[Nx* y   +x] -0.5*g*h[Nx* y   +x]*h[Nx* y   +x])/deltaY;
-        }
-
-        //Wait for all threads to reach here
-
-        //Calculate next step for h, h*u and h*v using the previous half step
-        //for(int y=1;y<Ny-1;y++){
-        //    for(int x=1;x<Nx-1;x++){
-         h[Nx*y+x] += deltaT*(hu_i05[(Nx-1)*y+x  ]-hu_i05[(Nx-1)*y+x-1])/deltaX +deltaT*(hv_j05[Nx*y+x]-hv_j05[Nx*(y-1)+x])/deltaY;
-        hu[Nx*y+x] += deltaT*(hu_j05[Nx* y   +x]*hv_j05[Nx* y   +x]/h_j05[Nx* y   +x]
-                             -hu_j05[Nx*(y-1)+x]*hv_j05[Nx*(y-1)+x]/h_j05[Nx*(y-1)+x])/deltaY
-                     +deltaT*(hu_i05[(Nx-1)*y+x  ]*hu_i05[(Nx-1)*y+x  ]/h_i05[(Nx-1)*y+x  ] +0.5*g*h_i05[(Nx-1)*y+x  ]*h_i05[(Nx-1)*y+x  ]
-                             -hu_i05[(Nx-1)*y+x-1]*hu_i05[(Nx-1)*y+x-1]/h_i05[(Nx-1)*y+x-1] -0.5*g*h_i05[(Nx-1)*y+x-1]*h_i05[(Nx-1)*y+x-1])/deltaX;   
-        hv[Nx*y+x] += deltaT*(hu_i05[(Nx-1)*y+x  ]*hv_i05[(Nx-1)*y+x  ]/h_i05[(Nx-1)*y+x  ]
-                             -hu_i05[(Nx-1)*y+x-1]*hv_i05[(Nx-1)*y+x-1]/h_i05[(Nx-1)*y+x-1])/deltaX
-                     +deltaT*(hu_j05[Nx* y   +x]*hu_j05[Nx* y   +x]/h_j05[Nx* y   +x] +0.5*g*h_j05[Nx* y   +x]*h_j05[Nx* y   +x]
-                             -hu_j05[Nx*(y-1)+x]*hu_j05[Nx*(y-1)+x]/h_j05[Nx*(y-1)+x] -0.5*g*h_j05[Nx*(y-1)+x]*h_j05[Nx*(y-1)+x])/deltaY;
-        u[Nx*y+x] = hu[Nx*y+x]/h[Nx*y+x];
-        v[Nx*y+x] = hv[Nx*y+x]/h[Nx*y+x];
-
-        //Wait for all threads to reach here
+        //Wait for previous kernel here
 
     }
 
