@@ -48,15 +48,15 @@ float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int
     int Ny = maxY/deltaY;
     float g = 9.8;
     int size = sizeof(float)*Nx*Ny;
-    float deltaT=deltaR/20.;
-    float *u   = malloc(sizeof(float)*Nx*Ny);
-    float *v   = malloc(sizeof(float)*Nx*Ny);
+    float deltaT=deltaR/10.;
+    //float *u  = malloc(sizeof(float)*Nx*Ny);
+    //float *v  = malloc(sizeof(float)*Nx*Ny);
     float *hu = malloc(size);
     float *hv = malloc(size);
-    float *h_i05 = malloc(sizeof(float)*(Nx-1)*Ny);
+    float  *h_i05 = malloc(sizeof(float)*(Nx-1)*Ny);
     float *hu_i05 = malloc(sizeof(float)*(Nx-1)*Ny);
     float *hv_i05 = malloc(sizeof(float)*(Nx-1)*Ny);
-    float *h_j05 = malloc(sizeof(float)*Nx*(Ny-1));
+    float  *h_j05 = malloc(sizeof(float)*Nx*(Ny-1));
     float *hu_j05 = malloc(sizeof(float)*Nx*(Ny-1));
     float *hv_j05 = malloc(sizeof(float)*Nx*(Ny-1));
     float *H_hist = malloc(sizeof(float)*(Nx-2)*(Ny-2)*(iterations/save_iteration));
@@ -68,8 +68,8 @@ float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int
     //Set initial velocities to zero
     for(int y=0;y<Ny;y++){
         for(int x=0;x<Nx;x++){
-             u[Nx*y+x] = 0;
-             v[Nx*y+x] = 0;
+             //u[Nx*y+x] = 0;
+             //v[Nx*y+x] = 0;
             hu[Nx*y+x] = 0;
             hv[Nx*y+x] = 0;
         }
@@ -90,28 +90,28 @@ float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int
 
         //Set borders for boundary condition
         for(int x=0;x<Nx;x++){
-             h[x] =  h[Nx*1 +x];
-             u[x] = -u[Nx*1 +x];
-             v[x] = 0;//v[Nx*1 +x];
-            hu[x] = -hu[Nx*1 +x];
-            hv[x] = 0;//hv[Nx*1 +x];
-             h[Nx*(Ny-1)+x] =  h[Nx*(Ny-2)+x];
-             u[Nx*(Ny-1)+x] = -u[Nx*(Ny-2)+x];
-             v[Nx*(Ny-1)+x] = 0;//v[Nx*(Ny-2)+x];
-            hu[Nx*(Ny-1)+x] = -hu[Nx*(Ny-2)+x];
-            hv[Nx*(Ny-1)+x] = 0;//hv[Nx*(Ny-2)+x];
+             h[x] =  h[Nx*2 +x];
+             //u[x] = -u[Nx*2 +x];
+             //v[x] = 0;//v[Nx*2 +x];
+            hu[x] = -hu[Nx*2 +x];
+            hv[x] = 0;//hv[Nx*2 +x];
+             h[Nx*(Ny-1)+x] =  h[Nx*(Ny-3)+x];
+             //u[Nx*(Ny-1)+x] = -u[Nx*(Ny-3)+x];
+             //v[Nx*(Ny-1)+x] = 0;//v[Nx*(Ny-3)+x];
+            hu[Nx*(Ny-1)+x] = -hu[Nx*(Ny-3)+x];
+            hv[Nx*(Ny-1)+x] = 0;//hv[Nx*(Ny-3)+x];
         }
         for(int y=0;y<Ny;y++){
-             h[Nx*y] =  h[Nx*y +1];
-             u[Nx*y] = 0;//u[Nx*y +1];
-             v[Nx*y] = -v[Nx*y +1];
-            hu[Nx*y] = 0;//hu[Nx*y +1];
-            hv[Nx*y] = -hv[Nx*y +1];
-             h[Nx*y+Nx-1] =  h[Nx*y+Nx-2];
-             u[Nx*y+Nx-1] = 0;//u[Nx*y+Nx-2];
-             v[Nx*y+Nx-1] = -v[Nx*y+Nx-2];
-            hu[Nx*y+Nx-1] = 0;//hu[Nx*y+Nx-2];
-            hv[Nx*y+Nx-1] = -hv[Nx*y+Nx-2];
+             h[Nx*y] =  h[Nx*y +2];
+             //u[Nx*y] = 0;//u[Nx*y +2];
+             //v[Nx*y] = -v[Nx*y +2];
+            hu[Nx*y] = 0;//hu[Nx*y +2];
+            hv[Nx*y] = -hv[Nx*y +2];
+             h[Nx*y+Nx-1] =  h[Nx*y+Nx-3];
+             //u[Nx*y+Nx-1] = 0;//u[Nx*y+Nx-3];
+             //v[Nx*y+Nx-1] = -v[Nx*y+Nx-3];
+            hu[Nx*y+Nx-1] = 0;//hu[Nx*y+Nx-3];
+            hv[Nx*y+Nx-1] = -hv[Nx*y+Nx-3];
         }
 
         //calculate half step for h, h*u and h*v
@@ -119,11 +119,11 @@ float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int
             for(int x=0;x<Nx-1;x++){
                  h_i05[(Nx-1)*y+x] = 0.5*( h[Nx*y+x+1]+ h[Nx*y+x  ])+0.5*deltaT*(hu[Nx*y+x+1]-hu[Nx*y+x])/deltaX;
                 hv_i05[(Nx-1)*y+x] = 0.5*(hv[Nx*y+x+1]+hv[Nx*y+x  ])
-                              +0.5*deltaT*(h[Nx*y+x+1]* u[Nx*y+x+1]*v[Nx*y+x+1]
-                                          -h[Nx*y+x  ]* u[Nx*y+x  ]*v[Nx*y+x  ])/deltaX;
+                             +0.5*deltaT*(hu[Nx*y+x+1]*hv[Nx*y+x+1]/h[Nx*y+x+1]
+                                         -hu[Nx*y+x  ]*hv[Nx*y+x  ]/h[Nx*y+x  ])/deltaX;
                 hu_i05[(Nx-1)*y+x] = 0.5*(hu[Nx*y+x+1]+hu[Nx*y+x  ])
-                              +0.5*deltaT*(u[Nx*y+x+1]* u[Nx*y+x+1]*h[Nx*y+x+1] +0.5*g*h[Nx*y+x+1]*h[Nx*y+x+1]
-                                          -u[Nx*y+x  ]* u[Nx*y+x  ]*h[Nx*y+x  ] -0.5*g*h[Nx*y+x  ]*h[Nx*y+x  ])/deltaX;
+                             +0.5*deltaT*(hu[Nx*y+x+1]*hu[Nx*y+x+1]/h[Nx*y+x+1] +0.5*g*h[Nx*y+x+1]*h[Nx*y+x+1]
+                                         -hu[Nx*y+x  ]*hu[Nx*y+x  ]/h[Nx*y+x  ] -0.5*g*h[Nx*y+x  ]*h[Nx*y+x  ])/deltaX;
             }
         }
 
@@ -131,11 +131,11 @@ float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int
             for(int x=0;x<Nx;x++){
                  h_j05[Nx*y+x] = 0.5*( h[Nx*(y+1)+x]+ h[Nx* y   +x])+0.5*deltaT*(hv[Nx*(y+1)+x]-hv[Nx*y+x])/deltaY;
                 hu_j05[Nx*y+x] = 0.5*(hu[Nx*(y+1)+x]+hu[Nx* y   +x])
-                          +0.5*deltaT*(h[Nx*(y+1)+x]* u[Nx*(y+1)+x]*v[Nx*(y+1)+x]
-                                      -h[Nx* y   +x]* u[Nx* y   +x]*v[Nx* y   +x])/deltaY;
+                         +0.5*deltaT*(hu[Nx*(y+1)+x]*hv[Nx*(y+1)+x]/h[Nx*(y+1)+x]
+                                     -hu[Nx* y   +x]*hv[Nx* y   +x]/h[Nx* y   +x])/deltaY;
                 hv_j05[Nx*y+x] = 0.5*(hv[Nx*(y+1)+x]+hv[Nx* y   +x])
-                          +0.5*deltaT*(v[Nx*(y+1)+x]* v[Nx*(y+1)+x]*h[Nx*(y+1)+x] +0.5*g*h[Nx*(y+1)+x]*h[Nx*(y+1)+x]
-                                      -v[Nx* y   +x]* v[Nx* y   +x]*h[Nx* y   +x] -0.5*g*h[Nx* y   +x]*h[Nx* y   +x])/deltaY;
+                         +0.5*deltaT*(hv[Nx*(y+1)+x]*hv[Nx*(y+1)+x]/h[Nx*(y+1)+x] +0.5*g*h[Nx*(y+1)+x]*h[Nx*(y+1)+x]
+                                     -hv[Nx* y   +x]*hv[Nx* y   +x]/h[Nx* y   +x] -0.5*g*h[Nx* y   +x]*h[Nx* y   +x])/deltaY;
             }
         }
 
@@ -151,8 +151,8 @@ float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int
                                      -hu_i05[(Nx-1)*y+x-1]*hv_i05[(Nx-1)*y+x-1]/h_i05[(Nx-1)*y+x-1])/deltaX
                              +deltaT*(hu_j05[Nx* y   +x]*hu_j05[Nx* y   +x]/h_j05[Nx* y   +x] +0.5*g*h_j05[Nx* y   +x]*h_j05[Nx* y   +x]
                                      -hu_j05[Nx*(y-1)+x]*hu_j05[Nx*(y-1)+x]/h_j05[Nx*(y-1)+x] -0.5*g*h_j05[Nx*(y-1)+x]*h_j05[Nx*(y-1)+x])/deltaY;
-                 u[Nx*y+x] = hu[Nx*y+x]/h[Nx*y+x];
-                 v[Nx*y+x] = hv[Nx*y+x]/h[Nx*y+x];
+                 //u[Nx*y+x] = hu[Nx*y+x]/h[Nx*y+x];
+                 //v[Nx*y+x] = hv[Nx*y+x]/h[Nx*y+x];
             }
         }
     }
@@ -220,16 +220,16 @@ void main(int argc, char* argv[]){
     
     //Define initial conditions
     int fType = 0;
-    float p0 = 0.4;
-    float x0 = 10.0;
-    float y0 = 25.0;
-    float q = 1.5;
+    float p0 = 0.5;
+    float x0 = 3.0;
+    float y0 = 2.0;
+    float q = 0.1;
     
     //Define simulation limits
     int iterations = ITERATIONS;
     if((argc>1) && atoi(argv[1])) iterations = atoi(argv[1]);
-    float maxX = 20;
-    float maxY = 30;
+    float maxX = 5;
+    float maxY = 5;
     if((argc>2) && atoi(argv[2])) maxX = atoi(argv[2]);
     if((argc>3) && atoi(argv[3])) maxY = atoi(argv[3]);
     float nT = 1;
@@ -238,7 +238,7 @@ void main(int argc, char* argv[]){
     float nB = 1;
     if((argc>5) && atoi(argv[5])) nB = atoi(argv[5]);
     nB = 1;
-    float deltaR = 0.05;
+    float deltaR = 0.01;
 
     u = initialize_field(p0,x0,y0,q,deltaR,maxX,maxY);
     printf("field initialized\n");

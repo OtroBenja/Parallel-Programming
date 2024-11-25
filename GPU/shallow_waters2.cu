@@ -10,21 +10,7 @@
 #define E  2.718281828
 #define C 1.0
 
-double leftmost_D1(double *f,int idx,double deltaR){
-    return (-25.0*f[idx] +48.0*f[idx+1] -36.0*f[idx+2] +16.0*f[idx+3] -3.0*f[idx+4])/(12.0*deltaR);
-}
-double leftmid_D1(double *f,int idx,double deltaR){
-    return (-3.0*f[idx-1] -10.0*f[idx] +18.0*f[idx+1] -6.0*f[idx+2] +1.0*f[idx+3])/(12.0*deltaR);
-}
-double centered_D1(double *f,int idx,double deltaR){
-    return (f[idx-2] -8.0*f[idx-1] +8.0*f[idx+1] -f[idx+2])/(12.0*deltaR);
-}
-double rightmid_D1(double *f,int idx,double deltaR){
-    return (-1.0*f[idx-3] +6.0*f[idx-2] -18.0*f[idx-1] +10.0*f[idx] +3.0*f[idx+1])/(12.0*deltaR);
-}
-double rightmost_D1(double *f,int idx,double deltaR){
-    return (3.0*f[idx-4] -16.0*f[idx-3] +36.0*f[idx-2] -48.0*f[idx-1] +25.0*f[idx])/(12.0*deltaR);
-}
+
 
 float* initialize_field(float p0,float x0, float y0,float q,float deltaR,int maxX,int maxY){
     float deltaX = deltaR;
@@ -41,128 +27,132 @@ float* initialize_field(float p0,float x0, float y0,float q,float deltaR,int max
     return h;
 }
 
-__global__ void boundary_kernel(float *h, float *hu, float *hv){
-    int x = threadIdx.x + blockIdx.x*blockDim.x;
-    int y = threadIdx.y + blockIdx.y*blockDim.y;
-    int Nx = blockDim.x*gridDim.x;
-    int Ny = blockDim.y*gridDim.y;
-    //Set boundary conditions
-    //for(int x=0;x<Nx;x++){
-    if(y==0){
-         h[x] =  h[Nx*1 +x];
-        hu[x] = -hu[Nx*1 +x];
-        hv[x] = 0;//hv[Nx*1 +x];
-    }
-         h[Nx*(Ny-1)+x] =  h[Nx*(Ny-2)+x];
-        hu[Nx*(Ny-1)+x] = -hu[Nx*(Ny-2)+x];
-        hv[Nx*(Ny-1)+x] = 0;//hv[Nx*(Ny-2)+x];
-    //for(int y=0;y<Ny;y++){
-         h[Nx*y] =  h[Nx*y +1];
-        hu[Nx*y] = 0;//hu[Nx*y +1];
-        hv[Nx*y] = -hv[Nx*y +1];
-         h[Nx*y+Nx-1] =  h[Nx*y+Nx-2];
-        hu[Nx*y+Nx-1] = 0;//hu[Nx*y+Nx-2];
-        hv[Nx*y+Nx-1] = -hv[Nx*y+Nx-2];
-}
-
-__global__ void half_i_kernel(float *h, float *hu, float *hv,
-                              float *h_i05, float *hu_i05, float *hv_i05,
-                              float deltaX, float deltaT, float g){
-    int x = threadIdx.x + blockIdx.x*blockDim.x;
-    int y = threadIdx.y + blockIdx.y*blockDim.y;
-    int Nx = blockDim.x*gridDim.x;
-    int Ny = blockDim.y*gridDim.y;
-
-    //for(int y=0;y<Ny;y++){
-    //    for(int x=0;x<Nx-1;x++){
-    if(x<Nx-1){
-         h_i05[(Nx-1)*y+x] = 0.5*( h[Nx*y+x+1]+ h[Nx*y+x  ])+0.5*deltaT*(hu[Nx*y+x+1]-hu[Nx*y+x])/deltaX;
-        hv_i05[(Nx-1)*y+x] = 0.5*(hv[Nx*y+x+1]+hv[Nx*y+x  ])
-                     +0.5*deltaT*(hu[Nx*y+x+1]*hv[Nx*y+x+1]/h[Nx*y+x+1]
-                                 -hu[Nx*y+x  ]*hv[Nx*y+x  ]/h[Nx*y+x  ])/deltaX;
-        hu_i05[(Nx-1)*y+x] = 0.5*(hu[Nx*y+x+1]+hu[Nx*y+x  ])
-                     +0.5*deltaT*(hu[Nx*y+x+1]*hu[Nx*y+x+1]/h[Nx*y+x+1] +0.5*g*h[Nx*y+x+1]*h[Nx*y+x+1]
-                                 -hu[Nx*y+x  ]*hu[Nx*y+x  ]/h[Nx*y+x  ] -0.5*g*h[Nx*y+x  ]*h[Nx*y+x  ])/deltaX;
-    }
-}
-
-__global__ void half_j_kernel(float *h, float *hu, float *hv,
-                              float *h_j05, float *hu_j05, float *hv_j05,
-                              float deltaY, float deltaT, float g){
-    int x = threadIdx.x + blockIdx.x*blockDim.x;
-    int y = threadIdx.y + blockIdx.y*blockDim.y;
-    int Nx = blockDim.x*gridDim.x;
-    int Ny = blockDim.y*gridDim.y;
-
-    //for(int y=0;y<Ny-1;y++){
-    //    for(int x=0;x<Nx;x++){
-    if(y<Ny-1){
-         h_j05[Nx*y+x] = 0.5*( h[Nx*(y+1)+x]+ h[Nx* y   +x])+0.5*deltaT*(hv[Nx*(y+1)+x]-hv[Nx*y+x])/deltaY;
-        hu_j05[Nx*y+x] = 0.5*(hu[Nx*(y+1)+x]+hu[Nx* y   +x])
-                 +0.5*deltaT*(hu[Nx*(y+1)+x]*hv[Nx*(y+1)+x]/h[Nx*(y+1)+x]
-                             -hu[Nx* y   +x]*hv[Nx* y   +x]/h[Nx* y   +x])/deltaY;
-        hv_j05[Nx*y+x] = 0.5*(hv[Nx*(y+1)+x]+hv[Nx* y   +x])
-                 +0.5*deltaT*(hv[Nx*(y+1)+x]*hv[Nx*(y+1)+x]/h[Nx*(y+1)+x] +0.5*g*h[Nx*(y+1)+x]*h[Nx*(y+1)+x]
-                             -hv[Nx* y   +x]*hv[Nx* y   +x]/h[Nx* y   +x] -0.5*g*h[Nx* y   +x]*h[Nx* y   +x])/deltaY;
-    }
-}
-
-
-__global__ void laststep_kernel(float *h, float *hu, float *hv,
-                                float *h_i05, float *hu_i05, float *hv_i05,
-                                float *h_j05, float *hu_j05, float *hv_j05,
-                                float deltaX, float deltaY,  float deltaT, float g){
-    int x = threadIdx.x + blockIdx.x*blockDim.x;
-    int y = threadIdx.y + blockIdx.y*blockDim.y;
-    int Nx = blockDim.x*gridDim.x;
-    int Ny = blockDim.y*gridDim.y;
-
-    
-    //Calculate next step for h, h*u and h*v using the previous half step
-    //for(int y=1;y<Ny-1;y++){
-    //    for(int x=1;x<Nx-1;x++){
-     h[Nx*y+x] += deltaT*(hu_i05[(Nx-1)*y+x  ]-hu_i05[(Nx-1)*y+x-1])/deltaX +deltaT*(hv_j05[Nx*y+x]-hv_j05[Nx*(y-1)+x])/deltaY;
-    hu[Nx*y+x] += deltaT*(hu_j05[Nx* y   +x]*hv_j05[Nx* y   +x]/h_j05[Nx* y   +x]
-                            -hu_j05[Nx*(y-1)+x]*hv_j05[Nx*(y-1)+x]/h_j05[Nx*(y-1)+x])/deltaY
-                    +deltaT*(hu_i05[(Nx-1)*y+x  ]*hu_i05[(Nx-1)*y+x  ]/h_i05[(Nx-1)*y+x  ] +0.5*g*h_i05[(Nx-1)*y+x  ]*h_i05[(Nx-1)*y+x  ]
-                            -hu_i05[(Nx-1)*y+x-1]*hu_i05[(Nx-1)*y+x-1]/h_i05[(Nx-1)*y+x-1] -0.5*g*h_i05[(Nx-1)*y+x-1]*h_i05[(Nx-1)*y+x-1])/deltaX;   
-    hv[Nx*y+x] += deltaT*(hu_i05[(Nx-1)*y+x  ]*hv_i05[(Nx-1)*y+x  ]/h_i05[(Nx-1)*y+x  ]
-                            -hu_i05[(Nx-1)*y+x-1]*hv_i05[(Nx-1)*y+x-1]/h_i05[(Nx-1)*y+x-1])/deltaX
-                    +deltaT*(hu_j05[Nx* y   +x]*hu_j05[Nx* y   +x]/h_j05[Nx* y   +x] +0.5*g*h_j05[Nx* y   +x]*h_j05[Nx* y   +x]
-                            -hu_j05[Nx*(y-1)+x]*hu_j05[Nx*(y-1)+x]/h_j05[Nx*(y-1)+x] -0.5*g*h_j05[Nx*(y-1)+x]*h_j05[Nx*(y-1)+x])/deltaY;
-}
-
 __global__ void iterate_kernel(float *h, float *hu, float *hv,
-                               float *h_i05, float *hu_i05, float *hv_i05,
-                               float *h_j05, float *hu_j05, float *hv_j05,
-                               int iterations, int deltaX, int deltaY, int deltaT,
-                               float g){//TO DO: Assign g, dX, dY, dT, Nx, and Ny as constant memory
-    int x = threadIdx.x + blockIdx.x*blockDim.x;
-    int y = threadIdx.y + blockIdx.y*blockDim.y;
-    int Nx = blockDim.x*gridDim.x;
-    int Ny = blockDim.y*gridDim.y;
+                                float g, float dx, float dy, float dt){
+
+    int ij,ip1,im1,jp1,jm1;
+    int imm,ipp,jmm,jpp;
+    float F0_i_j, F0_ip1_j, F0_im1_j;
+    float F1_i_j, F1_ip1_j, F1_im1_j;
+    float F2_i_j, F2_ip1_j, F2_im1_j;
+
+    float G0_i_j, G0_i_jp1, G0_i_jm1;
+    float G1_i_j, G1_i_jp1, G1_i_jm1;
+    float G2_i_j, G2_i_jp1, G2_i_jm1;
+
+    float U0_half_iphalf_j, U0_half_imhalf_j, U0_half_i_jphalf, U0_half_i_jmhalf;
+    float U1_half_iphalf_j, U1_half_imhalf_j, U1_half_i_jphalf, U1_half_i_jmhalf;
+    float U2_half_iphalf_j, U2_half_imhalf_j, U2_half_i_jphalf, U2_half_i_jmhalf;
+
+    float F0_half_iphalf_j, F0_half_imhalf_j, G0_half_i_jphalf, G0_half_i_jmhalf;
+    float F1_half_iphalf_j, F1_half_imhalf_j, G1_half_i_jphalf, G1_half_i_jmhalf;
+    float F2_half_iphalf_j, F2_half_imhalf_j, G2_half_i_jphalf, G2_half_i_jmhalf;
+
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    int j = threadIdx.y + blockIdx.y*blockDim.y;
+    int Ni = blockDim.x*gridDim.x;
+    int Nj = blockDim.y*gridDim.y;
+
+    ij = j*Ni+i;
+    imm = i-1;
+    ipp = i+1;
+    jmm = j-1;
+    jpp = j+1;
+
+    // boundary conditions implemented with index logic (my preferred trick)
+    if (i == 0){
+    imm = 1; // reflective condition in x -> use the first interior point
+    hu[ij] = -hu[ij];
+    hv[ij] = 0.0;
+    }
+    if (i == Ni-1){
+    ipp = Ni-2; // reflective condition in x -> use last interior point
+    hu[ij] = -hu[ij];
+    hv[ij] = 0.0;
+    }
+    if (j == 0){
+    jmm = 1; // reflection
+    hv[ij] = -hv[ij];
+    hu[ij] = 0.0;
+    }
+    if (j == Nj-1){
+    jpp = Nj-2; // reflection
+    hv[ij] = -hv[ij];
+    hu[ij] = 0.0;
+    }
+
+    ip1 = j*Ni+(ipp);
+    im1 = j*Ni+(imm);
+    jp1 = (jpp)*Ni+i;
+    jm1 = (jmm)*Ni+i;
+
+    F0_i_j = hu[ij];
+    F1_i_j = hu[ij]*hu[ij]/ h[ij] + 0.5*g* h[ij]* h[ij];
+    F2_i_j = hu[ij]*hv[ij]/ h[ij];
+
+    G0_i_j = hv[ij];
+    G1_i_j = hu[ij]*hv[ij]/ h[ij];
+    G2_i_j = hv[ij]*hv[ij]/ h[ij] + 0.5*g* h[ij]* h[ij];
+
+    F0_ip1_j = hu[ip1];
+    F0_im1_j = hu[im1];
+
+    F1_ip1_j = hu[ip1]*hu[ip1]/ h[ip1] + 0.5*g* h[ip1]* h[ip1];
+    F1_im1_j = hu[im1]*hu[im1]/ h[im1] + 0.5*g* h[im1]* h[im1];
+
+    F2_ip1_j = hu[ip1]*hv[ip1]/ h[ip1];
+    F2_im1_j = hu[im1]*hv[im1]/ h[im1];
+
+    G0_i_jp1 = hv[jp1];
+    G0_i_jm1 = hv[jm1];
+
+    G1_i_jp1 = hu[jp1]*hv[jp1]/ h[jp1];
+    G1_i_jm1 = hu[jm1]*hv[jm1]/ h[jm1];
+
+    G2_i_jp1 = hv[jp1]*hv[jp1]/ h[jp1] + 0.5*g* h[jp1]* h[jp1];
+    G2_i_jm1 = hv[jm1]*hv[jm1]/ h[jm1] + 0.5*g* h[jm1]* h[jm1];
+
+    U0_half_iphalf_j = 0.5*( h[ip1] +  h[ij]) - (dt/(2.0*dx))*(F0_ip1_j - F0_i_j);
+    U0_half_imhalf_j = 0.5*( h[im1] +  h[ij]) - (dt/(2.0*dx))*(F0_i_j - F0_im1_j);
+
+    U0_half_i_jphalf = 0.5*( h[jp1] +  h[ij]) - (dt/(2.0*dy))*(G0_i_jp1 - G0_i_j);
+    U0_half_i_jmhalf = 0.5*( h[jm1] +  h[ij]) - (dt/(2.0*dy))*(G0_i_j - G0_i_jm1);
+
+    U1_half_iphalf_j = 0.5*(hu[ip1] + hu[ij]) - (dt/(2.0*dx))*(F1_ip1_j - F1_i_j);
+    U1_half_imhalf_j = 0.5*(hu[im1] + hu[ij]) - (dt/(2.0*dx))*(F1_i_j - F1_im1_j);
+
+    U1_half_i_jphalf = 0.5*(hu[jp1] + hu[ij]) - (dt/(2.0*dy))*(G1_i_jp1 - G1_i_j);
+    U1_half_i_jmhalf = 0.5*(hu[jm1] + hu[ij]) - (dt/(2.0*dy))*(G1_i_j - G1_i_jm1);
+
+    U2_half_iphalf_j = 0.5*(hv[ip1] + hv[ij]) - (dt/(2.0*dx))*(F2_ip1_j - F2_i_j);
+    U2_half_imhalf_j = 0.5*(hv[im1] + hv[ij]) - (dt/(2.0*dx))*(F2_i_j - F2_im1_j);
+
+    U2_half_i_jphalf = 0.5*(hv[jp1] + hv[ij]) - (dt/(2.0*dy))*(G2_i_jp1 - G2_i_j);
+    U2_half_i_jmhalf = 0.5*(hv[jm1] + hv[ij]) - (dt/(2.0*dy))*(G2_i_j - G2_i_jm1);
+
+    F0_half_iphalf_j = U1_half_iphalf_j; G0_half_i_jphalf = U2_half_i_jphalf;
+    F0_half_imhalf_j = U1_half_imhalf_j; G0_half_i_jmhalf = U2_half_i_jmhalf;
+
+    F1_half_iphalf_j = U1_half_iphalf_j*U1_half_iphalf_j/U0_half_iphalf_j + 0.5*g*U0_half_iphalf_j*U0_half_iphalf_j; G1_half_i_jphalf = U1_half_i_jphalf*U2_half_i_jphalf/U0_half_i_jphalf;
+    F1_half_imhalf_j = U1_half_imhalf_j*U1_half_imhalf_j/U0_half_imhalf_j + 0.5*g*U0_half_imhalf_j*U0_half_imhalf_j; G1_half_i_jmhalf = U1_half_i_jmhalf*U2_half_i_jmhalf/U0_half_i_jmhalf;
+
+    F2_half_iphalf_j = U1_half_iphalf_j*U2_half_iphalf_j/U0_half_iphalf_j; G2_half_i_jphalf = U2_half_i_jphalf*U2_half_i_jphalf/U0_half_i_jphalf + 0.5*g*U0_half_i_jphalf*U0_half_i_jphalf;
+    F2_half_imhalf_j = U1_half_imhalf_j*U2_half_imhalf_j/U0_half_imhalf_j; G2_half_i_jmhalf = U2_half_i_jmhalf*U2_half_i_jmhalf/U0_half_i_jmhalf + 0.5*g*U0_half_i_jmhalf*U0_half_i_jmhalf;
+
+     h[ij] =  h[ij] - (dt/dx)*(F0_half_iphalf_j - F0_half_imhalf_j) - (dt/dy)*(G0_half_i_jphalf - G0_half_i_jmhalf);
+    hu[ij] = hu[ij] - (dt/dx)*(F1_half_iphalf_j - F1_half_imhalf_j) - (dt/dy)*(G1_half_i_jphalf - G1_half_i_jmhalf);
+    hv[ij] = hv[ij] - (dt/dx)*(F2_half_iphalf_j - F2_half_imhalf_j) - (dt/dy)*(G2_half_i_jphalf - G2_half_i_jmhalf);
+}
+
+
+__global__ void main_kernel(float *h, float *hu, float *hv,
+                               int iterations, int nThreads, int nBlocks,
+                               int deltaX, int deltaY, int deltaT, float g){//TO DO: Assign g, dX, dY, dT, Nx, and Ny as constant memory
+    
     for(int i=0;i<iterations;i++){
         
-        //Launch kernel for boundary conditions
-        boundary_kernel(h,hu,hv);
-
-        //Wait for previous kernel here
-        
-        //Launch kernels for half-step iteration
-        half_i_kernel(h,hu,hv,
-                      h_i05,hu_i05,hv_i05,
-                      deltaX, deltaT,g);
-        half_j_kernel(h,hu,hv,
-                      h_j05,hu_j05,hv_j05,
-                      deltaY, deltaT,g);
-
-        //Wait for previous kernels here
-
-        //Launch kernel for final step
-        laststep_kernel(h,hu,hv,
-                        h_i05,hu_i05,hv_i05,
-                        h_j05,hu_j05,hv_j05,
-                        deltaX, deltaY, deltaT,g);
+        //Launch kernel for one iteration
+        iterate_kernel<<<nThreads,nBlocks>>>(h,hu,hv,g,deltaX,deltaY,deltaT);
 
         //Wait for previous kernel here
 

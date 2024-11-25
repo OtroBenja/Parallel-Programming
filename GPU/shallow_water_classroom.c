@@ -59,13 +59,14 @@ void evolve_fields(float *U0, float *U1, float *U2, float *U0_np1, float *U1_np1
   // for the shallow water equations. NOT TESTED!!
 
   int ij,ip1,im1,jp1,jm1;
-  float F0_i_j, F0_ip1_j, F0_im1_j, F0_i_jp1, F0_i_jm1;
-  float F1_i_j, F1_ip1_j, F1_im1_j, F1_i_jp1, F1_i_jm1;
-  float F2_i_j, F2_ip1_j, F2_im1_j, F2_i_jp1, F2_i_jm1;
+  int imm,ipp,jmm,jpp;
+  float F0_i_j, F0_ip1_j, F0_im1_j;
+  float F1_i_j, F1_ip1_j, F1_im1_j;
+  float F2_i_j, F2_ip1_j, F2_im1_j;
 
-  float G0_i_j, G0_ip1_j, G0_im1_j, G0_i_jp1, G0_i_jm1;
-  float G1_i_j, G1_ip1_j, G1_im1_j, G1_i_jp1, G1_i_jm1;
-  float G2_i_j, G2_ip1_j, G2_im1_j, G2_i_jp1, G2_i_jm1;
+  float G0_i_j, G0_i_jp1, G0_i_jm1;
+  float G1_i_j, G1_i_jp1, G1_i_jm1;
+  float G2_i_j, G2_i_jp1, G2_i_jm1;
 
   float U0_half_iphalf_j, U0_half_imhalf_j, U0_half_i_jphalf, U0_half_i_jmhalf;
   float U1_half_iphalf_j, U1_half_imhalf_j, U1_half_i_jphalf, U1_half_i_jmhalf;
@@ -75,33 +76,42 @@ void evolve_fields(float *U0, float *U1, float *U2, float *U0_np1, float *U1_np1
   float F1_half_iphalf_j, F1_half_imhalf_j, G1_half_i_jphalf, G1_half_i_jmhalf;
   float F2_half_iphalf_j, F2_half_imhalf_j, G2_half_i_jphalf, G2_half_i_jmhalf;
 
+
   for (int j=0; j < N; j++){
     for (int i=0; i < N; i++){
 
       ij = j*N+i;
-
-      ip1 = j*N+(i+1);
-      im1 = j*N+(i-1);
-      jp1 = (j+1)*N+i;
-      jm1 = (j-1)*N+i;
+      imm = i-1;
+      ipp = i+1;
+      jmm = j-1;
+      jpp = j+1;
 
       // boundary conditions implemented with index logic (my preferred trick)
-
       if (i == 0){
-        im1 = 1; // reflective condition in x -> use the first interior point
+        imm = 1; // reflective condition in x -> use the first interior point
+        U1[ij] = -U1[ij];
+        U2[ij] = 0.0;
       }
-
       if (i == N-1){
-        ip1 = N-2; // reflective condition in x -> use last interior point
+        ipp = N-2; // reflective condition in x -> use last interior point
+        U1[ij] = -U1[ij];
+        U2[ij] = 0.0;
       }
-
       if (j == 0){
-        jm1 = 1; // reflection
+        jmm = 1; // reflection
+        U2[ij] = -U2[ij];
+        U1[ij] = 0.0;
+      }
+      if (j == N-1){
+        jpp = N-2; // reflection
+        U2[ij] = -U2[ij];
+        U1[ij] = 0.0;
       }
 
-      if (j == N-1){
-        jp1 = N-2; // reflection
-      }
+      ip1 = j*N+(ipp);
+      im1 = j*N+(imm);
+      jp1 = (jpp)*N+i;
+      jm1 = (jmm)*N+i;
 
       F0_i_j = U1[ij];
       F1_i_j = U1[ij]*U1[ij]/U0[ij] + 0.5*g*U0[ij]*U0[ij];
@@ -111,23 +121,23 @@ void evolve_fields(float *U0, float *U1, float *U2, float *U0_np1, float *U1_np1
       G1_i_j = U1[ij]*U2[ij]/U0[ij];
       G2_i_j = U2[ij]*U2[ij]/U0[ij] + 0.5*g*U0[ij]*U0[ij];
 
-      F0_ip1_j = U1[ip1]; F0_i_jp1 = U1[jp1];
-      F0_im1_j = U1[im1]; F0_i_jm1 = U1[jm1];
+      F0_ip1_j = U1[ip1];
+      F0_im1_j = U1[im1];
 
-      F1_ip1_j = U1[ip1]*U1[ip1]/U0[ip1] + 0.5*g*U0[ip1]*U0[ip1]; F1_i_jp1 = U1[jp1]*U1[jp1]/U0[jp1] + 0.5*g*U0[jp1]*U0[jp1];
-      F1_im1_j = U1[im1]*U1[im1]/U0[im1] + 0.5*g*U0[im1]*U0[im1]; F1_i_jm1 = U1[jm1]*U1[jm1]/U0[jm1] + 0.5*g*U0[jm1]*U0[jm1];
+      F1_ip1_j = U1[ip1]*U1[ip1]/U0[ip1] + 0.5*g*U0[ip1]*U0[ip1];
+      F1_im1_j = U1[im1]*U1[im1]/U0[im1] + 0.5*g*U0[im1]*U0[im1];
 
-      F2_ip1_j = U1[ip1]*U2[ip1]/U0[ip1]; F2_i_jp1 = U1[jp1]*U2[jp1]/U0[jp1];
-      F2_im1_j = U1[im1]*U2[im1]/U0[im1]; F2_i_jm1 = U1[jm1]*U2[jm1]/U0[jm1];
+      F2_ip1_j = U1[ip1]*U2[ip1]/U0[ip1];
+      F2_im1_j = U1[im1]*U2[im1]/U0[im1];
 
-      G0_ip1_j = U2[ip1]; G0_i_jp1 = U2[jp1];
-      G0_im1_j = U2[im1]; G0_i_jm1 = U2[jm1];
+      G0_i_jp1 = U2[jp1];
+      G0_i_jm1 = U2[jm1];
 
-      G1_ip1_j = U1[ip1]*U2[ip1]/U0[ip1]; G1_i_jp1 = U1[jp1]*U2[jp1]/U0[jp1];
-      G1_im1_j = U1[im1]*U2[im1]/U0[im1]; G1_i_jm1 = U1[jm1]*U2[jm1]/U0[jm1];
+      G1_i_jp1 = U1[jp1]*U2[jp1]/U0[jp1];
+      G1_i_jm1 = U1[jm1]*U2[jm1]/U0[jm1];
 
-      G2_ip1_j = U2[ip1]*U2[ip1]/U0[ip1] + 0.5*g*U0[ip1]*U0[ip1]; G2_i_jp1 = U2[jp1]*U2[jp1]/U0[jp1] + 0.5*g*U0[jp1]*U0[jp1];
-      G2_im1_j = U2[im1]*U2[im1]/U0[im1] + 0.5*g*U0[im1]*U0[im1]; G2_i_jm1 = U2[jm1]*U2[jm1]/U0[jm1] + 0.5*g*U0[jm1]*U0[jm1];
+      G2_i_jp1 = U2[jp1]*U2[jp1]/U0[jp1] + 0.5*g*U0[jp1]*U0[jp1];
+      G2_i_jm1 = U2[jm1]*U2[jm1]/U0[jm1] + 0.5*g*U0[jm1]*U0[jm1];
 
       U0_half_iphalf_j = 0.5*(U0[ip1] + U0[ij]) - (dt/(2.0*dx))*(F0_ip1_j - F0_i_j);
       U0_half_imhalf_j = 0.5*(U0[im1] + U0[ij]) - (dt/(2.0*dx))*(F0_i_j - F0_im1_j);
@@ -205,8 +215,8 @@ void print_data(float** hist,int iterations,int maxX,int maxY,float deltaR,int n
 
 int main(){
 
-  int N = 1000;
-  int Nt = 2000;
+  int N = 500;
+  int Nt = 5000;
 
   int count = 0;
 
@@ -218,9 +228,9 @@ int main(){
   int maxY = N*dx;
 
   float x0 = -3;
-  float y0 = -3;
-  float sigma = 0.001;
-  float A = 0.01;
+  float y0 = -2;
+  float sigma = 0.1;
+  float A = 0.5;
 
   float* U0 = malloc(N*N*sizeof(float));
   float* U1 = malloc(N*N*sizeof(float));
