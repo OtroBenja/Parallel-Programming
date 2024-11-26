@@ -12,9 +12,9 @@
 
 
 
-float* initialize_field(float p0,float x0, float y0,float q,int deltaX,int deltaY,int maxX,int maxY){
-    int Nx = maxX/deltaX;
-    int Ny = maxY/deltaY;
+float* initialize_field(float p0,float x0, float y0,float q,float deltaX,float deltaY,float maxX,float maxY){
+    int Nx = (int)(maxX/deltaX);
+    int Ny = (int)(maxY/deltaY);
     float* h = (float*)malloc(sizeof(float)*Nx*Ny);
 
     for(int y=0;y<Ny;y++){
@@ -26,6 +26,7 @@ float* initialize_field(float p0,float x0, float y0,float q,int deltaX,int delta
 }
 
 __global__ void iterate_kernel(float *h, float *hu, float *hv,
+                               float *h_p1, float *hu_p1, float *hv_p1,
                                int Nx, int Ny,
                                float dx, float dy, float dt){
 
@@ -56,26 +57,27 @@ __global__ void iterate_kernel(float *h, float *hu, float *hv,
     jmm = j-1;
     jpp = j+1;
 
+    //The error is in i=0,j=Ny-1
     
     if (i == 0){
         imm = 1; 
-        hu[ij] = -hu[ij];
-        hv[ij] = 0.0;
+        //hu[ij] = -hu[ij];
+        //hv[ij] = 0.0;
     }
     if (i == Nx-1){
         ipp = Nx-2; 
-        hu[ij] = -hu[ij];
-        hv[ij] = 0.0;
+        //hu[ij] = -hu[ij];
+        //hv[ij] = 0.0;
     }
     if (j == 0){
         jmm = 1;
-        hv[ij] = -hv[ij];
-        hu[ij] = 0.0;
+        //hv[ij] = -hv[ij];
+        //hu[ij] = 0.0;
     }
     if (j == Ny-1){
         jpp = Ny-2;
-        hv[ij] = -hv[ij];
-        hu[ij] = 0.0;
+        //hv[ij] = -hv[ij];
+        //hu[ij] = 0.0;
     }
 
     ip1 = j*Nx+(ipp);
@@ -136,12 +138,12 @@ __global__ void iterate_kernel(float *h, float *hu, float *hv,
     F2_half_iphalf_j = U1_half_iphalf_j*U2_half_iphalf_j/U0_half_iphalf_j; G2_half_i_jphalf = U2_half_i_jphalf*U2_half_i_jphalf/U0_half_i_jphalf + 0.5*G*U0_half_i_jphalf*U0_half_i_jphalf;
     F2_half_imhalf_j = U1_half_imhalf_j*U2_half_imhalf_j/U0_half_imhalf_j; G2_half_i_jmhalf = U2_half_i_jmhalf*U2_half_i_jmhalf/U0_half_i_jmhalf + 0.5*G*U0_half_i_jmhalf*U0_half_i_jmhalf;
 
-     h[ij] =  h[ij] - (dt/dx)*(F0_half_iphalf_j - F0_half_imhalf_j) - (dt/dy)*(G0_half_i_jphalf - G0_half_i_jmhalf);
-    hu[ij] = hu[ij] - (dt/dx)*(F1_half_iphalf_j - F1_half_imhalf_j) - (dt/dy)*(G1_half_i_jphalf - G1_half_i_jmhalf);
-    hv[ij] = hv[ij] - (dt/dx)*(F2_half_iphalf_j - F2_half_imhalf_j) - (dt/dy)*(G2_half_i_jphalf - G2_half_i_jmhalf);
+     h_p1[ij] =  h[ij] - (dt/dx)*(F0_half_iphalf_j - F0_half_imhalf_j) - (dt/dy)*(G0_half_i_jphalf - G0_half_i_jmhalf);
+    hu_p1[ij] = hu[ij] - (dt/dx)*(F1_half_iphalf_j - F1_half_imhalf_j) - (dt/dy)*(G1_half_i_jphalf - G1_half_i_jmhalf);
+    hv_p1[ij] = hv[ij] - (dt/dx)*(F2_half_iphalf_j - F2_half_imhalf_j) - (dt/dy)*(G2_half_i_jphalf - G2_half_i_jmhalf);
 }
 
-
+/*
 __global__ void main_kernel(float *h, float *hu, float *hv,
                                int iterations, int Nx, int Ny,
                                float deltaX, float deltaY, float deltaT){//TO DO: Assign dX, dY, dT, Nx, and Ny as constant memory
@@ -158,13 +160,14 @@ __global__ void main_kernel(float *h, float *hu, float *hv,
     }
 
 }
+*/
 
 void print_data(float** hist,int iterations,float maxX,float maxY,float deltaR,int nB,int nT,float totalTime){
     float deltaX = deltaR;
     float deltaY = deltaR;
     int Nx = maxX/deltaX;
     int Ny = maxY/deltaY;
-    int print_iterations = iterations/SAVE_ITERATION;
+    //int print_iterations = iterations/SAVE_ITERATION;
     //Add time to filename
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
@@ -172,10 +175,6 @@ void print_data(float** hist,int iterations,float maxX,float maxY,float deltaR,i
     char  binFileName[50];
     char    xFileName[50];
     char    yFileName[50];
-    //snprintf(metaFileName, sizeof(metaFileName), "Meta_%02d%02d%02d.dat", tm.tm_hour, tm.tm_min, tm.tm_sec);
-    //snprintf( binFileName, sizeof( binFileName), "Data_%02d%02d%02d.bin", tm.tm_hour, tm.tm_min, tm.tm_sec);
-    //snprintf(   xFileName, sizeof(   xFileName), "X_%02d%02d%02d.bin", tm.tm_hour, tm.tm_min, tm.tm_sec);
-    //snprintf(   yFileName, sizeof(   yFileName), "Y_%02d%02d%02d.bin", tm.tm_hour, tm.tm_min, tm.tm_sec);
     snprintf(metaFileName, sizeof(metaFileName), "Meta.dat");
     snprintf( binFileName, sizeof( binFileName), "Data.bin");
     snprintf(   xFileName, sizeof(   xFileName), "X.bin");
@@ -196,45 +195,53 @@ void print_data(float** hist,int iterations,float maxX,float maxY,float deltaR,i
     fprintf(metaFile,"Number of threads: %d\n",nT);
 
     //Print R to binary
-    fwrite(hist[0],sizeof(float)*(Nx-2),1,xFile);
-    fwrite(hist[1],sizeof(float)*(Ny-2),1,yFile);
+    fwrite(hist[0],sizeof(float)*Nx,1,xFile);
+    fwrite(hist[1],sizeof(float)*Ny,1,yFile);
     //Print data to binary
-    fwrite(hist[2],sizeof(float)*(Nx-2)*(Ny-2)*(iterations/SAVE_ITERATION),1,binFile);
+    fwrite(hist[2],sizeof(float)*Nx*Ny*1,1,binFile);
+}
+void swap_float_host(float* &a, float* &b){
+    float* &temp = a;
+    a = b;
+    b = temp;
+}
+__global__ void swap_pointers(float *p1,float *p2){
+    float *temp = p1;
+    p1 = p2;
+    p2 = temp;
 }
 
 int main(int argc, char* argv[]){
-    
     //Define initial conditions
-    int fType = 0;
+    //int fType = 0;
     float p0 = 0.4;
-    float x0 = 10.0;
-    float y0 = 25.0;
-    float q = 1.5;
+    float x0 = 3.0;
+    float y0 = 4.0;
+    float q = 0.1;
     
     //Define simulation limits
     int iterations = ITERATIONS;
     if((argc>1) && atoi(argv[1])) iterations = atoi(argv[1]);
-    float maxX = 20;
-    float maxY = 30;
-    if((argc>2) && atoi(argv[2])) maxX = atoi(argv[2]);
-    if((argc>3) && atoi(argv[3])) maxY = atoi(argv[3]);
+    float maxX = 5.0;
+    float maxY = 5.0;
+    if((argc>2) && atoi(argv[2])) maxX = atof(argv[2]);
+    if((argc>3) && atoi(argv[3])) maxY = atof(argv[3]);
     float deltaR = 0.01;
-
     float deltaX = deltaR;
     float deltaY = deltaR;
-    int Nx = maxX/deltaX;
-    int Ny = maxY/deltaY;
-    float g = 9.8;
-    int size = sizeof(float)*Ny;
+    int Nx = (int)(maxX/deltaX);
+    int Ny = (int)(maxY/deltaY);
+    //float g = 9.8;
+    int size = sizeof(float)*Nx*Ny;
     float deltaT=deltaR/10.0;
     float* h;
     float *hu  = (float*)malloc(size);
     float *hv  = (float*)malloc(size);
-    float *H_hist = (float*)malloc(sizeof(float)*(Nx-2)*(Ny-2)*(iterations/SAVE_ITERATION));
-    float *X_hist = (float*)malloc(sizeof(float)*(Nx-2));
-    float *Y_hist = (float*)malloc(sizeof(float)*(Ny-2));
+    float *H_hist = (float*)malloc(sizeof(float)*Nx*Ny*1);
+    float *X_hist = (float*)malloc(sizeof(float)*Nx);
+    float *Y_hist = (float*)malloc(sizeof(float)*Ny);
     float **hist = (float**)malloc(sizeof(float*)*3);
-    int save_count = SAVE_ITERATION;
+    //int save_count = SAVE_ITERATION;
 
     h = initialize_field(p0,x0,y0,q,deltaX,deltaY,maxX,maxY);
     //Set initial velocities to zero
@@ -248,10 +255,11 @@ int main(int argc, char* argv[]){
 
     //Allocate and copy memory to kernel
     float *h_device ;  cudaMalloc((void**)&h_device ,size);
-    float *u_device ;  cudaMalloc((void**)&u_device ,size);
-    float *v_device ;  cudaMalloc((void**)&v_device ,size);
     float *hu_device;  cudaMalloc((void**)&hu_device,size);
     float *hv_device;  cudaMalloc((void**)&hv_device,size);
+    float * h_p1;  cudaMalloc((void**)&h_p1 ,size);
+    float *hu_p1;  cudaMalloc((void**)&hu_p1,size);
+    float *hv_p1;  cudaMalloc((void**)&hv_p1,size);
     cudaMemcpy( h_device, h,size,cudaMemcpyHostToDevice);
     cudaMemcpy(hu_device,hu,size,cudaMemcpyHostToDevice);
     cudaMemcpy(hv_device,hv,size,cudaMemcpyHostToDevice);
@@ -268,14 +276,46 @@ int main(int argc, char* argv[]){
     //Pass initial conditions to iteration
     clock_t initTime = clock();
     printf("iteration started\n");
-    main_kernel<<<1,1>>>(h,hu,hv,iterations,Nx,Ny,deltaX,deltaY,deltaT);
+    //main_kernel<<<1,1>>>(h,hu,hv,iterations,Nx,Ny,deltaX,deltaY,deltaT);
+    int xBlocks = (Nx-1)/32+1;
+    int yBlocks = (Ny-1)/32+1;
+
+    for(int i=0;i<iterations;i++){
+        //Launch kernel for one iteration
+        iterate_kernel<<<dim3(xBlocks,yBlocks),dim3(32,32)>>>(h_device,hu_device,hv_device,
+                                                              h_p1,hu_p1,hv_p1,
+                                                              Nx,Ny,deltaX,deltaY,deltaT);
+
+        h_device = h_p1; hu_device = hu_p1; hv_device = hv_p1;
+        
+    }
+    cudaDeviceSynchronize();
     clock_t finalTime = clock();
     float  totalTime = (float)(finalTime-initTime) / CLOCKS_PER_SEC;
     printf("iteration finished\n");
 
+    //Copy data to host
+    cudaMemcpy( h, h_device,size,cudaMemcpyDeviceToHost);
+    cudaMemcpy(hu,hu_device,size,cudaMemcpyDeviceToHost);
+    cudaMemcpy(hv,hv_device,size,cudaMemcpyDeviceToHost);
+    
     //Print simulation history to a file
     printf("saving data...");
-    //print_data(hist,iterations,maxX,maxY,deltaR,nT,nB,totalTime);
+    for(int x=0;x<Nx;x++)
+        X_hist[x] = x*deltaX;
+    for(int y=0;y<Ny;y++)
+        Y_hist[y] = y*deltaY;
+    hist[0] =  X_hist;
+    hist[1] =  Y_hist;
+    hist[2] =  H_hist;
+    
+    for(int y=0;y<Ny;y++){
+        for(int x=0;x<Nx;x++){
+            H_hist[Nx*y +x] = h[Nx*y +x];
+        }
+    }
+
+    print_data(hist,iterations,maxX,maxY,deltaR,xBlocks*yBlocks,1024,totalTime);
     printf("\tData saved to files\n");
     printf("All finished\n");
 

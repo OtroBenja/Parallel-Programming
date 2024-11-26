@@ -89,23 +89,23 @@ void evolve_fields(float *U0, float *U1, float *U2, float *U0_np1, float *U1_np1
       // boundary conditions implemented with index logic (my preferred trick)
       if (i == 0){
         imm = 1; // reflective condition in x -> use the first interior point
-        U1[ij] = -U1[ij];
-        U2[ij] = 0.0;
+        //U1[ij] = -U1[ij];
+        //U2[ij] = 0.0;
       }
       if (i == N-1){
         ipp = N-2; // reflective condition in x -> use last interior point
-        U1[ij] = -U1[ij];
-        U2[ij] = 0.0;
+        //U1[ij] = -U1[ij];
+        //U2[ij] = 0.0;
       }
       if (j == 0){
         jmm = 1; // reflection
-        U2[ij] = -U2[ij];
-        U1[ij] = 0.0;
+        //U2[ij] = -U2[ij];
+        //U1[ij] = 0.0;
       }
       if (j == N-1){
         jpp = N-2; // reflection
-        U2[ij] = -U2[ij];
-        U1[ij] = 0.0;
+        //U2[ij] = -U2[ij];
+        //U1[ij] = 0.0;
       }
 
       ip1 = j*N+(ipp);
@@ -238,6 +238,9 @@ int main(){
   float* U0_np1 = malloc(N*N*sizeof(float));
   float* U1_np1 = malloc(N*N*sizeof(float));
   float* U2_np1 = malloc(N*N*sizeof(float));
+  float* temp0;
+  float* temp1;
+  float* temp2;
   float **hist = malloc(sizeof(float*)*3);
   float *H_hist = malloc(sizeof(float)*N*N*(Nt/SAVE_ITERATION));
   float *X_hist = malloc(sizeof(float)*N);
@@ -250,7 +253,9 @@ int main(){
   printf("iteration started\n");
   for (int t=0; t < Nt; t++){
     evolve_fields(U0, U1, U2, U0_np1, U1_np1, U2_np1, N, dx, dt, g);
-    U0 = U0_np1; U1 = U1_np1; U2 = U2_np1; // Swap pointers for next iteration
+    temp0 = U0; temp1 = U1; temp2 = U2; // Swap pointers for next iteration
+    U0 = U0_np1; U1 = U1_np1; U2 = U2_np1;
+    U0_np1 = temp0; U1_np1 = temp1; U2_np1 = temp2;
     if (t % 10 == 0){
         //Save values of u and u_t
         //printf("iteration %d\n",i);
