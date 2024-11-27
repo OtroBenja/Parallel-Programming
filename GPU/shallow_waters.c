@@ -10,22 +10,6 @@
 #define E  2.718281828
 #define C 1.0
 
-double leftmost_D1(double *f,int idx,double deltaR){
-    return (-25.0*f[idx] +48.0*f[idx+1] -36.0*f[idx+2] +16.0*f[idx+3] -3.0*f[idx+4])/(12.0*deltaR);
-}
-double leftmid_D1(double *f,int idx,double deltaR){
-    return (-3.0*f[idx-1] -10.0*f[idx] +18.0*f[idx+1] -6.0*f[idx+2] +1.0*f[idx+3])/(12.0*deltaR);
-}
-double centered_D1(double *f,int idx,double deltaR){
-    return (f[idx-2] -8.0*f[idx-1] +8.0*f[idx+1] -f[idx+2])/(12.0*deltaR);
-}
-double rightmid_D1(double *f,int idx,double deltaR){
-    return (-1.0*f[idx-3] +6.0*f[idx-2] -18.0*f[idx-1] +10.0*f[idx] +3.0*f[idx+1])/(12.0*deltaR);
-}
-double rightmost_D1(double *f,int idx,double deltaR){
-    return (3.0*f[idx-4] -16.0*f[idx-3] +36.0*f[idx-2] -48.0*f[idx-1] +25.0*f[idx])/(12.0*deltaR);
-}
-
 float* initialize_field(float p0,float x0, float y0,float q,float deltaR,int maxX,int maxY){
     float deltaX = deltaR;
     float deltaY = deltaR;
@@ -230,8 +214,8 @@ void main(int argc, char* argv[]){
     if((argc>1) && atoi(argv[1])) iterations = atoi(argv[1]);
     float maxX = 5;
     float maxY = 5;
-    if((argc>2) && atoi(argv[2])) maxX = atoi(argv[2]);
-    if((argc>3) && atoi(argv[3])) maxY = atoi(argv[3]);
+    if((argc>2) && atoi(argv[2])) maxX = atof(argv[2]);
+    if((argc>3) && atoi(argv[3])) maxY = atof(argv[3]);
     float nT = 1;
     if((argc>4) && atoi(argv[4])) nT = atoi(argv[4]);
     nT = 1;

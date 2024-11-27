@@ -89,23 +89,23 @@ void evolve_fields(float *U0, float *U1, float *U2, float *U0_np1, float *U1_np1
       // boundary conditions implemented with index logic (my preferred trick)
       if (i == 0){
         imm = 1; // reflective condition in x -> use the first interior point
-        //U1[ij] = -U1[ij];
-        //U2[ij] = 0.0;
+        U1[ij] = -U1[ij];
+        U2[ij] = 0.0;
       }
       if (i == N-1){
         ipp = N-2; // reflective condition in x -> use last interior point
-        //U1[ij] = -U1[ij];
-        //U2[ij] = 0.0;
+        U1[ij] = -U1[ij];
+        U2[ij] = 0.0;
       }
       if (j == 0){
         jmm = 1; // reflection
-        //U2[ij] = -U2[ij];
-        //U1[ij] = 0.0;
+        U2[ij] = -U2[ij];
+        U1[ij] = 0.0;
       }
       if (j == N-1){
         jpp = N-2; // reflection
-        //U2[ij] = -U2[ij];
-        //U1[ij] = 0.0;
+        U2[ij] = -U2[ij];
+        U1[ij] = 0.0;
       }
 
       ip1 = j*N+(ipp);
