@@ -264,15 +264,6 @@ int main(int argc, char* argv[]){
     cudaMemcpy(hu_device,hu,size,cudaMemcpyHostToDevice);
     cudaMemcpy(hv_device,hv,size,cudaMemcpyHostToDevice);
 
-    int size_i05 = sizeof(float)*(Nx-1)*Ny;
-    int size_j05 = sizeof(float)*Nx*(Ny-1);
-    float *h_i05 ; cudaMalloc((void**)&h_i05 ,size_i05);
-    float *hu_i05; cudaMalloc((void**)&hu_i05,size_i05);
-    float *hv_i05; cudaMalloc((void**)&hv_i05,size_i05);
-    float *h_j05 ; cudaMalloc((void**)&h_j05 ,size_j05);
-    float *hu_j05; cudaMalloc((void**)&hu_j05,size_j05);
-    float *hv_j05; cudaMalloc((void**)&hv_j05,size_j05);
-
     //Pass initial conditions to iteration
     clock_t initTime = clock();
     printf("iteration started\n");
