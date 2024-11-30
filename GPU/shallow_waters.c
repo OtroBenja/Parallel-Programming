@@ -216,12 +216,6 @@ void main(int argc, char* argv[]){
     float maxY = 5;
     if((argc>2) && atoi(argv[2])) maxX = atof(argv[2]);
     if((argc>3) && atoi(argv[3])) maxY = atof(argv[3]);
-    float nT = 1;
-    if((argc>4) && atoi(argv[4])) nT = atoi(argv[4]);
-    nT = 1;
-    float nB = 1;
-    if((argc>5) && atoi(argv[5])) nB = atoi(argv[5]);
-    nB = 1;
     float deltaR = 0.01;
 
     u = initialize_field(p0,x0,y0,q,deltaR,maxX,maxY);
@@ -237,7 +231,7 @@ void main(int argc, char* argv[]){
 
     //Print simulation history to a file
     printf("saving data...");
-    print_data(hist,iterations,maxX,maxY,deltaR,nT,nB,totalTime);
+    print_data(hist,iterations,maxX,maxY,deltaR,1,1,totalTime);
     printf("\tData saved to files\n");
     printf("All finished\n");
 

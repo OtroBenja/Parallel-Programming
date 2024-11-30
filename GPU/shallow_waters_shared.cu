@@ -10,6 +10,8 @@
 #define E  2.718281828
 #define C 1.0
 #define G 9.814
+#define BDIM 32
+
 
 float* initialize_field(float p0,float x0, float y0,float q,float deltaX, float deltaY,int Nx,int Ny){
     float* h = (float*)malloc(sizeof(float)*Nx*Ny);
@@ -163,6 +165,111 @@ __global__ void laststep_kernel(float *h, float *hu, float *hv,
     }
 }
 
+__global__ void iter_shared(float *h_global, float *hu_global, float *hv_global,
+                                int Nx, int Ny,
+                                float deltaX, float deltaY,  float deltaT){
+
+    //Assign shared memory
+    __shared__ float      h[(BDIM)*(BDIM)];
+    __shared__ float     hu[(BDIM)*(BDIM)];
+    __shared__ float     hv[(BDIM)*(BDIM)];
+    __shared__ float  h_i05[(BDIM)*(BDIM)];
+    __shared__ float hu_i05[(BDIM)*(BDIM)];
+    __shared__ float hv_i05[(BDIM)*(BDIM)];
+    __shared__ float  h_j05[(BDIM)*(BDIM)];
+    __shared__ float hu_j05[(BDIM)*(BDIM)];
+    __shared__ float hv_j05[(BDIM)*(BDIM)];
+
+    int x = threadIdx.x + blockIdx.x*blockDim.x;
+    int y = threadIdx.y + blockIdx.y*blockDim.y;
+
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    //Copy global to shared memory and displace it to overlap with previous and next block
+     h[(BDIM)*(ty) +tx] =  h_global[Nx*(y-blockIdx.y) +x-blockIdx.x];
+    hu[(BDIM)*(ty) +tx] = hu_global[Nx*(y-blockIdx.y) +x-blockIdx.x];
+    hv[(BDIM)*(ty) +tx] = hv_global[Nx*(y-blockIdx.y) +x-blockIdx.x];
+
+    /*
+    //Copy global to shared memory of the boundary values
+    if(ty == 0){
+         h_shared[tx+1] =  h[Nx*(y) +x+1];
+        hu_shared[tx+1] = hu[Nx*(y) +x+1];
+        hv_shared[tx+1] = hv[Nx*(y) +x+1];
+    }
+    if(ty == BDIM-1){
+         h_shared[(BDIM)*(ty+2) +tx+1] =  h[Nx*(y+2) +tx+1];
+        hu_shared[(BDIM)*(ty+2) +tx+1] = hu[Nx*(y+2) +tx+1];
+        hv_shared[(BDIM)*(ty+2) +tx+1] = hv[Nx*(y+2) +tx+1];
+    }
+    if(tx == 0){
+         h_shared[(BDIM)*(ty+1)] =  h[Nx*(y+1) +x];
+        hu_shared[(BDIM)*(ty+1)] = hu[Nx*(y+1) +x];
+        hv_shared[(BDIM)*(ty+1)] = hv[Nx*(y+1) +x];
+    }
+    if(tx == BDIM-1){
+         h_shared[(BDIM+2)*(ty+1) +tx+2] =  h[Nx*(y+1) +x+2];
+        hu_shared[(BDIM+2)*(ty+1) +tx+2] = hu[Nx*(y+1) +x+2];
+        hv_shared[(BDIM+2)*(ty+1) +tx+2] = hv[Nx*(y+1) +x+2];
+    }
+    */
+
+   //Sync the block after copying the data to shared memory
+   __syncthreads();
+
+    //Calculate half-step in i+0.5
+    if(ty<BDIM){
+        if(tx<BDIM-1){
+         h_i05[(BDIM-1)*ty+tx] = 0.5*( h[BDIM*ty+tx+1]+ h[BDIM*ty+tx  ])+0.5*deltaT*(hu[BDIM*ty+tx+1]-hu[BDIM*ty+tx])/deltaX;
+        hv_i05[(BDIM-1)*ty+tx] = 0.5*(hv[BDIM*ty+tx+1]+hv[BDIM*ty+tx  ])
+                         +0.5*deltaT*(hu[BDIM*ty+tx+1]*hv[BDIM*ty+tx+1]/h[BDIM*ty+tx+1]
+                                     -hu[BDIM*ty+tx  ]*hv[BDIM*ty+tx  ]/h[BDIM*ty+tx  ])/deltaX;
+        hu_i05[(BDIM-1)*ty+tx] = 0.5*(hu[BDIM*ty+tx+1]+hu[BDIM*ty+tx  ])
+                         +0.5*deltaT*(hu[BDIM*ty+tx+1]*hu[BDIM*ty+tx+1]/h[BDIM*ty+tx+1] +0.5*G*h[BDIM*ty+tx+1]*h[BDIM*ty+tx+1]
+                                     -hu[BDIM*ty+tx  ]*hu[BDIM*ty+tx  ]/h[BDIM*ty+tx  ] -0.5*G*h[BDIM*ty+tx  ]*h[BDIM*ty+tx  ])/deltaX;
+        }
+    }
+
+    //The half-steps are independent of eachother, so there's no need to sync inbetween
+
+    //Calculate half-step in j+0.5
+    if(ty<BDIM-1){
+        if(tx<BDIM){
+             h_j05[BDIM*ty+tx] = 0.5*( h[BDIM*(ty+1)+tx]+ h[BDIM* ty   +tx])+0.5*deltaT*(hv[BDIM*(ty+1)+tx]-hv[BDIM*ty+tx])/deltaY;
+            hu_j05[BDIM*ty+tx] = 0.5*(hu[BDIM*(ty+1)+tx]+hu[BDIM* ty   +tx])
+                         +0.5*deltaT*(hu[BDIM*(ty+1)+tx]*hv[BDIM*(ty+1)+tx]/h[BDIM*(ty+1)+tx]
+                                     -hu[BDIM* ty   +tx]*hv[BDIM* ty   +tx]/h[BDIM* ty   +tx])/deltaY;
+            hv_j05[BDIM*ty+tx] = 0.5*(hv[BDIM*(ty+1)+tx]+hv[BDIM* ty   +tx])
+                         +0.5*deltaT*(hv[BDIM*(ty+1)+tx]*hv[BDIM*(ty+1)+tx]/h[BDIM*(ty+1)+tx] +0.5*G*h[BDIM*(ty+1)+tx]*h[BDIM*(ty+1)+tx]
+                                     -hv[BDIM* ty   +tx]*hv[BDIM* ty   +tx]/h[BDIM* ty   +tx] -0.5*G*h[BDIM* ty   +tx]*h[BDIM* ty   +tx])/deltaY;
+        }
+    }
+
+    //Sync threads after both half-steps are done
+    __syncthreads();
+
+    //Calculate next step for h, h*u and h*v using the previous half-step
+    //and save on global memory
+    if(tx>0 && tx<BDIM-1){
+        if(ty>0 && ty<BDIM-1){
+             h_global[Nx*(y-blockIdx.y)+x-blockIdx.x] =  h[BDIM*ty+tx]
+                         +deltaT*(hu_i05[(BDIM-1)*ty+tx  ]-hu_i05[(BDIM-1)*ty+tx-1])/deltaX
+                         +deltaT*(hv_j05[BDIM*ty+tx]-hv_j05[BDIM*(ty-1)+tx])/deltaY;
+            hu_global[Nx*(y-blockIdx.y)+x-blockIdx.x] = hu[BDIM*ty+tx]
+                         +deltaT*(hu_j05[BDIM* ty   +tx]*hv_j05[BDIM* ty   +tx]/h_j05[BDIM* ty   +tx]
+                                 -hu_j05[BDIM*(ty-1)+tx]*hv_j05[BDIM*(ty-1)+tx]/h_j05[BDIM*(ty-1)+tx])/deltaY
+                         +deltaT*(hu_i05[(BDIM-1)*ty+tx  ]*hu_i05[(BDIM-1)*ty+tx  ]/h_i05[(BDIM-1)*ty+tx  ] +0.5*G*h_i05[(BDIM-1)*ty+tx  ]*h_i05[(BDIM-1)*ty+tx  ]
+                                 -hu_i05[(BDIM-1)*ty+tx-1]*hu_i05[(BDIM-1)*ty+tx-1]/h_i05[(BDIM-1)*ty+tx-1] -0.5*G*h_i05[(BDIM-1)*ty+tx-1]*h_i05[(BDIM-1)*ty+tx-1])/deltaX;   
+            hv_global[Nx*(y-blockIdx.y)+x-blockIdx.x] = hu[BDIM*ty+tx] 
+                         +deltaT*(hu_i05[(BDIM-1)*ty+tx  ]*hv_i05[(BDIM-1)*ty+tx  ]/h_i05[(BDIM-1)*ty+tx  ]
+                                 -hu_i05[(BDIM-1)*ty+tx-1]*hv_i05[(BDIM-1)*ty+tx-1]/h_i05[(BDIM-1)*ty+tx-1])/deltaX
+                         +deltaT*(hu_j05[BDIM* ty   +tx]*hu_j05[BDIM* ty   +tx]/h_j05[BDIM* ty   +tx] +0.5*G*h_j05[BDIM* ty   +tx]*h_j05[BDIM* ty   +tx]
+                                 -hu_j05[BDIM*(ty-1)+tx]*hu_j05[BDIM*(ty-1)+tx]/h_j05[BDIM*(ty-1)+tx] -0.5*G*h_j05[BDIM*(ty-1)+tx]*h_j05[BDIM*(ty-1)+tx])/deltaY;
+        }
+    }
+}
+
 void print_data(float** hist,int iterations,int Nsave,int Nx,int Ny,float deltaX,float deltaY,int nB,int nT,float totalTime){
     float maxX = Nx*deltaX;
     float maxY = Ny*deltaY;
@@ -264,11 +371,16 @@ int main(int argc, char* argv[]){
     float *hu_j05; cudaMalloc((void**)&hu_j05,size_j05);
     float *hv_j05; cudaMalloc((void**)&hv_j05,size_j05);
 
-    int xBlocks = (Nx-1)/32+1;
-    int yBlocks = (Ny-1)/32+1;
+    dim3 blockDim = dim3(BDIM,BDIM);
+    //Define grid dimensions for iteration with global memory
+    int xBlocks = (Nx-1)/BDIM+1;
+    int yBlocks = (Ny-1)/BDIM+1;
     dim3 gridDim = dim3(xBlocks,yBlocks);
     dim3 gridDim2 = dim3(2*xBlocks,yBlocks);
-    dim3 blockDim = dim3(32,32);
+    //Define grid dimensions for iteration with shared memory
+    int xBlocksShared = (Nx-1)/(BDIM-1)+1;
+    int yBlocksShared = (Ny-1)/(BDIM-1)+1;
+    dim3 gridDimShared = dim3(xBlocksShared,yBlocksShared);
 
     //Calculate when to save values of h
     int save_iter;
@@ -289,7 +401,6 @@ int main(int argc, char* argv[]){
         half_j_kernel<<<gridDim,blockDim>>>(h_device,hu_device,hv_device,
                       h_j05,hu_j05,hv_j05,
                       Nx, Ny, deltaY, deltaT);
-        */
 
        //Launch kernel for half-step iteration
         half_ij_kernel<<<gridDim2,blockDim>>>(h_device,hu_device,hv_device,
@@ -303,6 +414,11 @@ int main(int argc, char* argv[]){
                         h_i05,hu_i05,hv_i05,
                         h_j05,hu_j05,hv_j05,
                         Nx, Ny, deltaX, deltaY, deltaT);
+        */
+
+        //Launch kernel for shared iteration
+        iter_shared<<<gridDimShared,blockDim>>>(h_device,hu_device,hv_device,
+                        Nx,Ny,deltaX,deltaY,deltaT);
 
         //Save intermediate step if necessary
         if(Nsave>0){
@@ -350,7 +466,7 @@ int main(int argc, char* argv[]){
             H_hist[(Nx-2)*(Ny-2)*(Nsave) + (Nx-2)*y +x] = h[Nx*(y+1) +(x+1)];
         }
     }
-    print_data(hist,iterations,Nsave+1,Nx,Ny,deltaX,deltaY,xBlocks*yBlocks,32*32,totalTime);
+    print_data(hist,iterations,Nsave+1,Nx,Ny,deltaX,deltaY,xBlocks*yBlocks,BDIM*BDIM,totalTime);
     printf("\tData saved to files\n");
     printf("All finished\n");
 
