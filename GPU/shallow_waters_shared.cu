@@ -252,7 +252,7 @@ __global__ void iter_shared(float *h_global, float *hu_global, float *hv_global,
     }
 }
 
-void print_data(float** hist,int iterations,int Nsave,int Nx,int Ny,float deltaX,float deltaY,int nB,int nT,float totalTime){
+void print_data(float** hist,int iterations,int Nsave,int Nx,int Ny,float deltaX,float deltaY,float deltaT,int nB,int nT,float totalTime){
     float maxX = Nx*deltaX;
     float maxY = Ny*deltaY;
     //Add time to filename
@@ -276,6 +276,7 @@ void print_data(float** hist,int iterations,int Nsave,int Nx,int Ny,float deltaX
     fprintf(metaFile,"Total simulation time: %lf\n",totalTime);
     fprintf(metaFile,"X step size: %f\n",deltaX);
     fprintf(metaFile,"Y step size: %f\n",deltaY);
+    fprintf(metaFile,"Time step size: %f\n",deltaT);
     fprintf(metaFile,"Maximum X: %f\n",maxX);
     fprintf(metaFile,"Maximum Y: %f\n",maxY);
     fprintf(metaFile,"Iterations: %d\n",iterations);
@@ -294,21 +295,21 @@ int main(int argc, char* argv[]){
     //Define initial conditions
     //int fType = 0;
     float p0 = 0.4;
-    float x0 = 3.0;
-    float y0 = 4.0;
+    float x0 = 1.5;
+    float y0 = 2.0;
     float q = 0.1;
     
     //Define simulation limits
     int iterations = ITERATIONS;
     if((argc>1) && atoi(argv[1])) iterations = atoi(argv[1]);
-    int Nx = 100;
-    int Ny = 100;
+    int Nx = 300;
+    int Ny = 300;
     if((argc>2) && atoi(argv[2])) Nx = atoi(argv[2]);
     if((argc>3) && atoi(argv[3])) Ny = atoi(argv[3]);
     float deltaR = 0.01;
     float deltaX = deltaR;
     float deltaY = deltaR;
-    float cfl = 10;
+    float cfl = 50;
     if((argc>4) && atoi(argv[4])) cfl = atof(argv[4]);
     float deltaT=deltaR/cfl;
     int Nsave = 0;
@@ -367,7 +368,7 @@ int main(int argc, char* argv[]){
     //Calculate when to save values of h
     int save_iter;
     int i_save = 0;
-    if(Nsave>1) save_iter = iterations/Nsave;
+    if(Nsave>1) save_iter = (iterations-1)/(Nsave+1) +1;;
 
     //Pass initial conditions to iteration
     clock_t initTime = clock();
@@ -404,7 +405,7 @@ int main(int argc, char* argv[]){
 
         //Save intermediate step if necessary
         if(Nsave>0){
-            if(i==save_iter*(i_save+1)+1){
+            if(i==save_iter*(i_save)){
                 float *H_hist_idx;
                 H_hist_idx = &H_hist_ghostzones[i_save*Nx*Ny];
                 cudaMemcpy(H_hist_idx,h_device,size,cudaMemcpyDeviceToHost);
@@ -448,7 +449,7 @@ int main(int argc, char* argv[]){
             H_hist[(Nx-2)*(Ny-2)*(Nsave) + (Nx-2)*y +x] = h[Nx*(y+1) +(x+1)];
         }
     }
-    print_data(hist,iterations,Nsave+1,Nx,Ny,deltaX,deltaY,xBlocks*yBlocks,BDIM*BDIM,totalTime);
+    print_data(hist,iterations,Nsave+1,Nx,Ny,deltaX,deltaY,deltaT,xBlocks*yBlocks,BDIM*BDIM,totalTime);
     printf("\tData saved to files\n");
     printf("All finished\n");
 

@@ -10,12 +10,8 @@
 #define E  2.718281828
 #define C 1.0
 
-float* initialize_field(float p0,float x0, float y0,float q,float deltaR,int maxX,int maxY){
-    float deltaX = deltaR;
-    float deltaY = deltaR;
-    int Nx = maxX/deltaR;
-    int Ny = maxY/deltaR;
-    float* h = malloc(sizeof(float)*Nx*Ny);
+float* initialize_field(float p0,float x0, float y0,float q,float deltaX, float deltaY,int Nx,int Ny){
+    float* h = (float*)malloc(sizeof(float)*Nx*Ny);
 
     for(int y=0;y<Ny;y++){
         for(int x=0;x<Nx;x++){
@@ -25,75 +21,49 @@ float* initialize_field(float p0,float x0, float y0,float q,float deltaR,int max
     return h;
 }
 
-float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int save_iteration){
-    float deltaX = deltaR;
-    float deltaY = deltaR;
-    int Nx = maxX/deltaX;
-    int Ny = maxY/deltaY;
+float** iteration(float* h,float *hu, float *hv, int Nx, int Ny,
+                  float deltaX, float deltaY, float deltaT, int iterations,int Nsave){
     float g = 9.8;
+    int save_iter = (iterations-1)/(Nsave+1) +1;
     int size = sizeof(float)*Nx*Ny;
-    float deltaT=deltaR/10.;
-    //float *u  = malloc(sizeof(float)*Nx*Ny);
-    //float *v  = malloc(sizeof(float)*Nx*Ny);
-    float *hu = malloc(size);
-    float *hv = malloc(size);
     float  *h_i05 = malloc(sizeof(float)*(Nx-1)*Ny);
     float *hu_i05 = malloc(sizeof(float)*(Nx-1)*Ny);
     float *hv_i05 = malloc(sizeof(float)*(Nx-1)*Ny);
     float  *h_j05 = malloc(sizeof(float)*Nx*(Ny-1));
     float *hu_j05 = malloc(sizeof(float)*Nx*(Ny-1));
     float *hv_j05 = malloc(sizeof(float)*Nx*(Ny-1));
-    float *H_hist = malloc(sizeof(float)*(Nx-2)*(Ny-2)*(iterations/save_iteration));
+    float *H_hist = malloc(sizeof(float)*(Nx-2)*(Ny-2)*(Nsave+1));
     float *X_hist = malloc(sizeof(float)*(Nx-2));
     float *Y_hist = malloc(sizeof(float)*(Ny-2));
     float **hist = malloc(sizeof(float*)*3);
-    int save_count = save_iteration;
-
-    //Set initial velocities to zero
-    for(int y=0;y<Ny;y++){
-        for(int x=0;x<Nx;x++){
-             //u[Nx*y+x] = 0;
-             //v[Nx*y+x] = 0;
-            hu[Nx*y+x] = 0;
-            hv[Nx*y+x] = 0;
-        }
-    }
+    int i_save = 0;
+    save_iter;
 
     for(int i=0;i<iterations;i++){
-        //Save values of u and u_t
-        if(save_count == save_iteration){
-            //printf("iteration %d\n",i);
+        //Save values of h
+        if(i==save_iter*(i_save)){
             for(int y=0;y<(Ny-2);y++){
                 for(int x=0;x<(Nx-2);x++){
-                    H_hist[(i/save_iteration)*(Ny-2)*(Nx-2) +(Nx-2)*y +x] = h[Nx*(y+1) +(x+1)];
+                    H_hist[(i_save)*(Ny-2)*(Nx-2) +(Nx-2)*y +x] = h[Nx*(y+1) +(x+1)];
                 }
             }
-            save_count=0;
+            i_save++;
         }
-        save_count+=1;
 
         //Set borders for boundary condition
         for(int x=0;x<Nx;x++){
              h[x] =  h[Nx*2 +x];
-             //u[x] = -u[Nx*2 +x];
-             //v[x] = 0;//v[Nx*2 +x];
             hu[x] = -hu[Nx*2 +x];
             hv[x] = 0;//hv[Nx*2 +x];
              h[Nx*(Ny-1)+x] =  h[Nx*(Ny-3)+x];
-             //u[Nx*(Ny-1)+x] = -u[Nx*(Ny-3)+x];
-             //v[Nx*(Ny-1)+x] = 0;//v[Nx*(Ny-3)+x];
             hu[Nx*(Ny-1)+x] = -hu[Nx*(Ny-3)+x];
             hv[Nx*(Ny-1)+x] = 0;//hv[Nx*(Ny-3)+x];
         }
         for(int y=0;y<Ny;y++){
              h[Nx*y] =  h[Nx*y +2];
-             //u[Nx*y] = 0;//u[Nx*y +2];
-             //v[Nx*y] = -v[Nx*y +2];
             hu[Nx*y] = 0;//hu[Nx*y +2];
             hv[Nx*y] = -hv[Nx*y +2];
              h[Nx*y+Nx-1] =  h[Nx*y+Nx-3];
-             //u[Nx*y+Nx-1] = 0;//u[Nx*y+Nx-3];
-             //v[Nx*y+Nx-1] = -v[Nx*y+Nx-3];
             hu[Nx*y+Nx-1] = 0;//hu[Nx*y+Nx-3];
             hv[Nx*y+Nx-1] = -hv[Nx*y+Nx-3];
         }
@@ -135,12 +105,16 @@ float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int
                                      -hu_i05[(Nx-1)*y+x-1]*hv_i05[(Nx-1)*y+x-1]/h_i05[(Nx-1)*y+x-1])/deltaX
                              +deltaT*(hu_j05[Nx* y   +x]*hu_j05[Nx* y   +x]/h_j05[Nx* y   +x] +0.5*g*h_j05[Nx* y   +x]*h_j05[Nx* y   +x]
                                      -hu_j05[Nx*(y-1)+x]*hu_j05[Nx*(y-1)+x]/h_j05[Nx*(y-1)+x] -0.5*g*h_j05[Nx*(y-1)+x]*h_j05[Nx*(y-1)+x])/deltaY;
-                 //u[Nx*y+x] = hu[Nx*y+x]/h[Nx*y+x];
-                 //v[Nx*y+x] = hv[Nx*y+x]/h[Nx*y+x];
             }
         }
     }
-        
+    //Save last values of h
+    for(int y=0;y<(Ny-2);y++){
+        for(int x=0;x<(Nx-2);x++){
+            H_hist[(Nsave)*(Ny-2)*(Nx-2) +(Nx-2)*y +x] = h[Nx*(y+1) +(x+1)];
+        }
+    }
+
     for(int ix=0;ix<(Nx-2);ix++)
         X_hist[ix] = ix*deltaX;
     for(int iy=0;iy<(Ny-2);iy++)
@@ -148,15 +122,13 @@ float** iteration(float* h,float deltaR,float maxX,float maxY,int iterations,int
     hist[0] =  X_hist;
     hist[1] =  Y_hist;
     hist[2] =  H_hist;
+
     return hist;
 }
 
-void print_data(float** hist,int iterations,float maxX,float maxY,float deltaR,int nB,int nT,float totalTime){
-    float deltaX = deltaR;
-    float deltaY = deltaR;
-    int Nx = maxX/deltaX;
-    int Ny = maxY/deltaY;
-    int print_iterations = iterations/SAVE_ITERATION;
+void print_data(float** hist,int iterations,int Nsave,int Nx,int Ny,float deltaX,float deltaY,float deltaT,int nB,int nT,float totalTime){
+    float maxX = Nx*deltaX;
+    float maxY = Ny*deltaY;
     //Add time to filename
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
@@ -164,10 +136,6 @@ void print_data(float** hist,int iterations,float maxX,float maxY,float deltaR,i
     char  binFileName[50];
     char    xFileName[50];
     char    yFileName[50];
-    //snprintf(metaFileName, sizeof(metaFileName), "Meta_%02d%02d%02d.dat", tm.tm_hour, tm.tm_min, tm.tm_sec);
-    //snprintf( binFileName, sizeof( binFileName), "Data_%02d%02d%02d.bin", tm.tm_hour, tm.tm_min, tm.tm_sec);
-    //snprintf(   xFileName, sizeof(   xFileName), "X_%02d%02d%02d.bin", tm.tm_hour, tm.tm_min, tm.tm_sec);
-    //snprintf(   yFileName, sizeof(   yFileName), "Y_%02d%02d%02d.bin", tm.tm_hour, tm.tm_min, tm.tm_sec);
     snprintf(metaFileName, sizeof(metaFileName), "Meta.dat");
     snprintf( binFileName, sizeof( binFileName), "Data.bin");
     snprintf(   xFileName, sizeof(   xFileName), "X.bin");
@@ -180,10 +148,13 @@ void print_data(float** hist,int iterations,float maxX,float maxY,float deltaR,i
     //Print all parameters
     fprintf(metaFile,"Execution type: Sequential CPU\n");
     fprintf(metaFile,"Total simulation time: %lf\n",totalTime);
-    fprintf(metaFile,"R step size: %f\n",deltaR);
+    fprintf(metaFile,"X step size: %f\n",deltaX);
+    fprintf(metaFile,"Y step size: %f\n",deltaY);
+    fprintf(metaFile,"Tme step size: %f\n",deltaT);
     fprintf(metaFile,"Maximum X: %f\n",maxX);
     fprintf(metaFile,"Maximum Y: %f\n",maxY);
     fprintf(metaFile,"Iterations: %d\n",iterations);
+    fprintf(metaFile,"Iterations saved: %d\n",Nsave);
     fprintf(metaFile,"Number of blocks: %d\n",nB);
     fprintf(metaFile,"Number of threads: %d\n",nT);
 
@@ -191,47 +162,62 @@ void print_data(float** hist,int iterations,float maxX,float maxY,float deltaR,i
     fwrite(hist[0],sizeof(float)*(Nx-2),1,xFile);
     fwrite(hist[1],sizeof(float)*(Ny-2),1,yFile);
     //Print data to binary
-    fwrite(hist[2],sizeof(float)*(Nx-2)*(Ny-2)*(iterations/SAVE_ITERATION),1,binFile);
+    fwrite(hist[2],sizeof(float)*(Nx-2)*(Ny-2),Nsave,binFile);
 }
 
 void main(int argc, char* argv[]){
-    float* u;
-    float** hist;
-    float* r;
-    float* phi;
-    float* Phi;
-    float* Pi;
     
     //Define initial conditions
     int fType = 0;
-    float p0 = 0.5;
-    float x0 = 3.0;
+    float p0 = 0.4;
+    float x0 = 1.5;
     float y0 = 2.0;
     float q = 0.1;
     
     //Define simulation limits
     int iterations = ITERATIONS;
     if((argc>1) && atoi(argv[1])) iterations = atoi(argv[1]);
-    float maxX = 5;
-    float maxY = 5;
-    if((argc>2) && atoi(argv[2])) maxX = atof(argv[2]);
-    if((argc>3) && atoi(argv[3])) maxY = atof(argv[3]);
+    int Nx = 300;
+    int Ny = 300;
+    if((argc>2) && atoi(argv[2])) Nx = atoi(argv[2]);
+    if((argc>3) && atoi(argv[3])) Ny = atoi(argv[3]);
     float deltaR = 0.01;
+    float deltaX = deltaR;
+    float deltaY = deltaR;
+    float cfl = 50;
+    if((argc>4) && atoi(argv[4])) cfl = atof(argv[4]);
+    float deltaT=deltaR/cfl;
+    int Nsave = 0;
+    if((argc>5) && atoi(argv[5])) Nsave = atoi(argv[5]);
 
-    u = initialize_field(p0,x0,y0,q,deltaR,maxX,maxY);
-    printf("field initialized\n");
+    //Allocate memory on host
+    int size = sizeof(float)*Nx*Ny;
+    float *hu  = (float*)malloc(size);
+    float *hv  = (float*)malloc(size);
+    float **hist;
+
+    float* h;
+    h = initialize_field(p0,x0,y0,q,deltaX,deltaY,Nx,Ny);
+    //Set initial velocities to zero
+    for(int y=0;y<Ny;y++){
+        for(int x=0;x<Nx;x++){
+            hu[Nx*y+x] = 0;
+            hv[Nx*y+x] = 0;
+        }
+    }
 
     //Pass initial conditions to iteration
+    int save_iter = iterations/(Nsave+1);
     clock_t initTime = clock();
     printf("iteration started\n");
-    hist = iteration(u,deltaR,maxX,maxY,iterations,SAVE_ITERATION);
+    hist = iteration(h,hu,hv,Nx,Ny,deltaX,deltaY,deltaT,iterations,Nsave);
     clock_t finalTime = clock();
     float  totalTime = (float)(finalTime-initTime) / CLOCKS_PER_SEC;
     printf("iteration finished\n");
 
     //Print simulation history to a file
     printf("saving data...");
-    print_data(hist,iterations,maxX,maxY,deltaR,1,1,totalTime);
+    print_data(hist,iterations,Nsave+1,Nx,Ny,deltaX,deltaY,deltaT,1,1,totalTime);
     printf("\tData saved to files\n");
     printf("All finished\n");
 
