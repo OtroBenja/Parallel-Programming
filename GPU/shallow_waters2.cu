@@ -5,46 +5,48 @@
 #define ISCUDA
 #include "shallow_waters.h"
 
-__global__ void half_i_kernel(float *h, float *hu, float *hv,
-                              float *h_i05, float *hu_i05, float *hv_i05,
-                              int Nx, int Ny,
-                              float deltaX, float deltaT){
-    int x = threadIdx.x + blockIdx.x*blockDim.x;
+__global__ void half_ij_kernel(float *h, float *hu, float *hv,
+                               float *h_i05, float *hu_i05, float *hv_i05,
+                               float *h_j05, float *hu_j05, float *hv_j05,
+                               int Nx, int Ny,
+                               float deltaX, float deltaY, float deltaT){
+    int half_id = 1;
+    if(blockIdx.x < gridDim.x/2){
+        half_id = 0;
+    }
+
+    int x = threadIdx.x + (blockIdx.x-half_id*gridDim.x/2)*blockDim.x;
     int y = threadIdx.y + blockIdx.y*blockDim.y;
 
-    //for(int y=0;y<Ny;y++){
-    //    for(int x=0;x<Nx-1;x++){
-    if(y<Ny){
-        if(x<Nx-1){
-         h_i05[(Nx-1)*y+x] = 0.5*( h[Nx*y+x+1]+ h[Nx*y+x  ])+0.5*deltaT*(hu[Nx*y+x+1]-hu[Nx*y+x])/deltaX;
-        hv_i05[(Nx-1)*y+x] = 0.5*(hv[Nx*y+x+1]+hv[Nx*y+x  ])
-                     +0.5*deltaT*(hu[Nx*y+x+1]*hv[Nx*y+x+1]/h[Nx*y+x+1]
-                                 -hu[Nx*y+x  ]*hv[Nx*y+x  ]/h[Nx*y+x  ])/deltaX;
-        hu_i05[(Nx-1)*y+x] = 0.5*(hu[Nx*y+x+1]+hu[Nx*y+x  ])
-                     +0.5*deltaT*(hu[Nx*y+x+1]*hu[Nx*y+x+1]/h[Nx*y+x+1] +0.5*G*h[Nx*y+x+1]*h[Nx*y+x+1]
-                                 -hu[Nx*y+x  ]*hu[Nx*y+x  ]/h[Nx*y+x  ] -0.5*G*h[Nx*y+x  ]*h[Nx*y+x  ])/deltaX;
+    if(half_id == 0){
+        //for(int y=0;y<Ny;y++){
+        //    for(int x=0;x<Nx-1;x++){
+        if(y<Ny){
+            if(x<Nx-1){
+            h_i05[(Nx-1)*y+x] = 0.5*( h[Nx*y+x+1]+ h[Nx*y+x  ])+0.5*deltaT*(hu[Nx*y+x+1]-hu[Nx*y+x])/deltaX;
+            hv_i05[(Nx-1)*y+x] = 0.5*(hv[Nx*y+x+1]+hv[Nx*y+x  ])
+                        +0.5*deltaT*(hu[Nx*y+x+1]*hv[Nx*y+x+1]/h[Nx*y+x+1]
+                                    -hu[Nx*y+x  ]*hv[Nx*y+x  ]/h[Nx*y+x  ])/deltaX;
+            hu_i05[(Nx-1)*y+x] = 0.5*(hu[Nx*y+x+1]+hu[Nx*y+x  ])
+                        +0.5*deltaT*(hu[Nx*y+x+1]*hu[Nx*y+x+1]/h[Nx*y+x+1] +0.5*G*h[Nx*y+x+1]*h[Nx*y+x+1]
+                                    -hu[Nx*y+x  ]*hu[Nx*y+x  ]/h[Nx*y+x  ] -0.5*G*h[Nx*y+x  ]*h[Nx*y+x  ])/deltaX;
+            }
         }
     }
-}
 
-__global__ void half_j_kernel(float *h, float *hu, float *hv,
-                              float *h_j05, float *hu_j05, float *hv_j05,
-                              int Nx, int Ny,
-                              float deltaY, float deltaT){
-    int x = threadIdx.x + blockIdx.x*blockDim.x;
-    int y = threadIdx.y + blockIdx.y*blockDim.y;
-
-    //for(int y=0;y<Ny-1;y++){
-    //    for(int x=0;x<Nx;x++){
-    if(y<Ny-1){
-        if(x<Nx){
-             h_j05[Nx*y+x] = 0.5*( h[Nx*(y+1)+x]+ h[Nx* y   +x])+0.5*deltaT*(hv[Nx*(y+1)+x]-hv[Nx*y+x])/deltaY;
-            hu_j05[Nx*y+x] = 0.5*(hu[Nx*(y+1)+x]+hu[Nx* y   +x])
-                     +0.5*deltaT*(hu[Nx*(y+1)+x]*hv[Nx*(y+1)+x]/h[Nx*(y+1)+x]
-                                -hu[Nx* y   +x]*hv[Nx* y   +x]/h[Nx* y   +x])/deltaY;
-            hv_j05[Nx*y+x] = 0.5*(hv[Nx*(y+1)+x]+hv[Nx* y   +x])
-                     +0.5*deltaT*(hv[Nx*(y+1)+x]*hv[Nx*(y+1)+x]/h[Nx*(y+1)+x] +0.5*G*h[Nx*(y+1)+x]*h[Nx*(y+1)+x]
-                                 -hv[Nx* y   +x]*hv[Nx* y   +x]/h[Nx* y   +x] -0.5*G*h[Nx* y   +x]*h[Nx* y   +x])/deltaY;
+    if(half_id == 1){
+        //for(int y=0;y<Ny-1;y++){
+        //    for(int x=0;x<Nx;x++){
+        if(y<Ny-1){
+            if(x<Nx){
+                h_j05[Nx*y+x] = 0.5*( h[Nx*(y+1)+x]+ h[Nx* y   +x])+0.5*deltaT*(hv[Nx*(y+1)+x]-hv[Nx*y+x])/deltaY;
+                hu_j05[Nx*y+x] = 0.5*(hu[Nx*(y+1)+x]+hu[Nx* y   +x])
+                        +0.5*deltaT*(hu[Nx*(y+1)+x]*hv[Nx*(y+1)+x]/h[Nx*(y+1)+x]
+                                    -hu[Nx* y   +x]*hv[Nx* y   +x]/h[Nx* y   +x])/deltaY;
+                hv_j05[Nx*y+x] = 0.5*(hv[Nx*(y+1)+x]+hv[Nx* y   +x])
+                        +0.5*deltaT*(hv[Nx*(y+1)+x]*hv[Nx*(y+1)+x]/h[Nx*(y+1)+x] +0.5*G*h[Nx*(y+1)+x]*h[Nx*(y+1)+x]
+                                    -hv[Nx* y   +x]*hv[Nx* y   +x]/h[Nx* y   +x] -0.5*G*h[Nx* y   +x]*h[Nx* y   +x])/deltaY;
+            }
         }
     }
 }
@@ -114,6 +116,7 @@ int main(int argc, char* argv[]){
     int xBlocks = (Nx-1)/BDIM+1;
     int yBlocks = (Ny-1)/BDIM+1;
     dim3 gridDim = dim3(xBlocks,yBlocks);
+    dim3 gridDim2 = dim3(2*xBlocks,yBlocks);
     dim3 blockDim = dim3(BDIM,BDIM);
 
     //Calculate when to save values of h
@@ -128,13 +131,12 @@ int main(int argc, char* argv[]){
         //Launch kernel for boundary conditions
         boundary_kernel<<<gridDim,blockDim>>>(h_device,hu_device,hv_device,Nx,Ny);
 
-        //Launch kernels for half-step iteration
-        half_i_kernel<<<gridDim,blockDim>>>(h_device,hu_device,hv_device,
+       //Launch kernel for half-step iteration
+        half_ij_kernel<<<gridDim2,blockDim>>>(h_device,hu_device,hv_device,
                       h_i05,hu_i05,hv_i05,
-                      Nx, Ny, deltaX, deltaT);
-        half_j_kernel<<<gridDim,blockDim>>>(h_device,hu_device,hv_device,
                       h_j05,hu_j05,hv_j05,
-                      Nx, Ny, deltaY, deltaT);
+                      Nx, Ny, deltaX, deltaY, deltaT);
+
 
         //Launch kernel for final step
         laststep_kernel<<<gridDim,blockDim>>>(h_device,hu_device,hv_device,
@@ -147,7 +149,7 @@ int main(int argc, char* argv[]){
             if(i==save_iter*(i_save)){
                 float *H_hist_idx;
                 H_hist_idx = &H_hist_ghostzones[i_save*Nx*Ny];
-                cudaMemcpyAsync(H_hist_idx,h_device,size,cudaMemcpyDeviceToHost);
+                cudaMemcpy(H_hist_idx,h_device,size,cudaMemcpyDeviceToHost);
                 i_save++;
             }
         }
@@ -180,7 +182,8 @@ int main(int argc, char* argv[]){
             }
         }
     }
-    char exec_type[] = "Cuda global memory";
+
+    char exec_type[] = "Cuda global memory 2";
     print_data(hist,exec_type,iterations,Nsave+1,Nx,Ny,deltaX,deltaY,deltaT,xBlocks*yBlocks,BDIM*BDIM,totalTime);
     printf("\tData saved to files\n");
     printf("All finished\n");

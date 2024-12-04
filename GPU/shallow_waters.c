@@ -3,23 +3,7 @@
 #include <math.h>
 #include <time.h>
 
-#define SAVE_RES 500
-#define SAVE_ITERATION 10
-#define ITERATIONS 100
-#define PI 3.141592653
-#define E  2.718281828
-#define C 1.0
-
-float* initialize_field(float p0,float x0, float y0,float q,float deltaX, float deltaY,int Nx,int Ny){
-    float* h = (float*)malloc(sizeof(float)*Nx*Ny);
-
-    for(int y=0;y<Ny;y++){
-        for(int x=0;x<Nx;x++){
-            h[y*Nx+x] = 1.0+ p0*powf(E,-(pow(x*deltaX-x0,2)+pow(y*deltaY-y0,2))/q);
-        }
-    }
-    return h;
-}
+#include "shallow_waters.h"
 
 float** iteration(float* h,float *hu, float *hv, int Nx, int Ny,
                   float deltaX, float deltaY, float deltaT, int iterations,int Nsave){
@@ -126,69 +110,29 @@ float** iteration(float* h,float *hu, float *hv, int Nx, int Ny,
     return hist;
 }
 
-void print_data(float** hist,int iterations,int Nsave,int Nx,int Ny,float deltaX,float deltaY,float deltaT,int nB,int nT,float totalTime){
-    float maxX = Nx*deltaX;
-    float maxY = Ny*deltaY;
-    //Add time to filename
-    time_t t = time(NULL);
-    struct tm tm = *localtime(&t);
-    char metaFileName[50];
-    char  binFileName[50];
-    char    xFileName[50];
-    char    yFileName[50];
-    snprintf(metaFileName, sizeof(metaFileName), "Meta.dat");
-    snprintf( binFileName, sizeof( binFileName), "Data.bin");
-    snprintf(   xFileName, sizeof(   xFileName), "X.bin");
-    snprintf(   yFileName, sizeof(   yFileName), "Y.bin");
-    FILE* metaFile = fopen(metaFileName,"w");
-    FILE*  binFile = fopen(binFileName,"wb");
-    FILE*    xFile = fopen(  xFileName,"wb");
-    FILE*    yFile = fopen(  yFileName,"wb");
-
-    //Print all parameters
-    fprintf(metaFile,"Execution type: Sequential CPU\n");
-    fprintf(metaFile,"Total simulation time: %lf\n",totalTime);
-    fprintf(metaFile,"X step size: %f\n",deltaX);
-    fprintf(metaFile,"Y step size: %f\n",deltaY);
-    fprintf(metaFile,"Tme step size: %f\n",deltaT);
-    fprintf(metaFile,"Maximum X: %f\n",maxX);
-    fprintf(metaFile,"Maximum Y: %f\n",maxY);
-    fprintf(metaFile,"Iterations: %d\n",iterations);
-    fprintf(metaFile,"Iterations saved: %d\n",Nsave);
-    fprintf(metaFile,"Number of blocks: %d\n",nB);
-    fprintf(metaFile,"Number of threads: %d\n",nT);
-
-    //Print R to binary
-    fwrite(hist[0],sizeof(float)*(Nx-2),1,xFile);
-    fwrite(hist[1],sizeof(float)*(Ny-2),1,yFile);
-    //Print data to binary
-    fwrite(hist[2],sizeof(float)*(Nx-2)*(Ny-2),Nsave,binFile);
-}
-
 void main(int argc, char* argv[]){
     
     //Define initial conditions
-    int fType = 0;
-    float p0 = 0.4;
-    float x0 = 1.5;
-    float y0 = 2.0;
-    float q = 0.1;
+    float a0 = A0;
+    float x0 = X0;
+    float y0 = Y0;
+    float q = SIGMA;
     
-    //Define simulation limits
-    int iterations = ITERATIONS;
+    //Define simulation parameters
+    int iterations = ITERATIONS_DEFAULT;
     if((argc>1) && atoi(argv[1])) iterations = atoi(argv[1]);
-    int Nx = 300;
-    int Ny = 300;
-    if((argc>2) && atoi(argv[2])) Nx = atoi(argv[2]);
-    if((argc>3) && atoi(argv[3])) Ny = atoi(argv[3]);
-    float deltaR = 0.01;
+    int Nsave = NSAVE_DEFAULT;
+    if((argc>2) && atoi(argv[2])) Nsave = atoi(argv[2]);
+    int Nx = NX_DEFAULT;
+    int Ny = NY_DEFAULT;
+    if((argc>3) && atoi(argv[3])) Nx = atoi(argv[3]);
+    if((argc>4) && atoi(argv[4])) Ny = atoi(argv[4]);
+    float deltaR = DELTAR;
     float deltaX = deltaR;
     float deltaY = deltaR;
-    float cfl = 50;
-    if((argc>4) && atoi(argv[4])) cfl = atof(argv[4]);
+    float cfl = CFL_DEFAULT;
+    if((argc>5) && atoi(argv[5])) cfl = atof(argv[5]);
     float deltaT=deltaR/cfl;
-    int Nsave = 0;
-    if((argc>5) && atoi(argv[5])) Nsave = atoi(argv[5]);
 
     //Allocate memory on host
     int size = sizeof(float)*Nx*Ny;
@@ -197,7 +141,7 @@ void main(int argc, char* argv[]){
     float **hist;
 
     float* h;
-    h = initialize_field(p0,x0,y0,q,deltaX,deltaY,Nx,Ny);
+    h = initialize_field(a0,x0,y0,q,deltaX,deltaY,Nx,Ny);
     //Set initial velocities to zero
     for(int y=0;y<Ny;y++){
         for(int x=0;x<Nx;x++){
@@ -207,9 +151,8 @@ void main(int argc, char* argv[]){
     }
 
     //Pass initial conditions to iteration
-    int save_iter = iterations/(Nsave+1);
-    clock_t initTime = clock();
     printf("iteration started\n");
+    clock_t initTime = clock();
     hist = iteration(h,hu,hv,Nx,Ny,deltaX,deltaY,deltaT,iterations,Nsave);
     clock_t finalTime = clock();
     float  totalTime = (float)(finalTime-initTime) / CLOCKS_PER_SEC;
@@ -217,7 +160,8 @@ void main(int argc, char* argv[]){
 
     //Print simulation history to a file
     printf("saving data...");
-    print_data(hist,iterations,Nsave+1,Nx,Ny,deltaX,deltaY,deltaT,1,1,totalTime);
+    char exec_type[] = "Sequential CPU";
+    print_data(hist,exec_type,iterations,Nsave+1,Nx,Ny,deltaX,deltaY,deltaT,1,1,totalTime);
     printf("\tData saved to files\n");
     printf("All finished\n");
 
